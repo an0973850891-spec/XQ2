@@ -14,10 +14,10 @@ st.set_page_config(
 )
 
 st.title(
-    '📈 台股大盤趨勢、技術分析與 🔥 隔日高勝率續強機會潛力股掃描 (100檔全價格帶)'
+    '📈 台股大盤趨勢、技術分析與 🔥 隔日高勝率續強機會潛力股掃描 (200檔放寬量能版)'
 )
 st.markdown(
-    '本系統專為尋找**「隔日續強、高勝率漲勢」**設計，透過收盤強勢度、法人籌碼與量能放大，幫您篩選適合尾盤佈局的潛力標的！'
+    '本系統已將掃描範圍擴大至 **200 檔**並**放寬成交量限制**，助您精準捕捉中小型潛力股與隔日續強機會！'
 )
 
 # 忽略警告
@@ -323,14 +323,15 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
   dt_risk_score = 0
   dt_reasons = []
 
-  if recent_vol_val < 1000000:
+  # 放寬流動性警示門檻至 300 張
+  if recent_vol_val < 300000:
     dt_risk_score += 2
     dt_reasons.append(
-        '⚠️ **流動性警示**：今日成交量低於 1,000 張，隔日開盤流動性較低。'
+        '⚠️ **流動性警示**：今日成交量低於 300 張，隔日開盤流動性較低。'
     )
   else:
     dt_reasons.append(
-        '✅ **流動性確認**：成交量超過 1,000 張，隔日進出順暢。'
+        '✅ **流動性確認**：成交量超過 300 張，隔日進出順暢。'
     )
 
   if close >= upper:
@@ -507,7 +508,7 @@ if st.sidebar.button('🔄 重新整理 / 清除快取'):
   st.sidebar.success('快取已清除！')
 
 run_scan = st.sidebar.button(
-    '🚀 執行前 100 檔 隔日高勝率續強潛力股智慧掃描'
+    '🚀 執行前 200 檔 隔日高勝率續強潛力股智慧掃描 (放寬量能)'
 )
 
 
@@ -810,13 +811,13 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
   st.markdown('---')
 
 
-# --- 主畫面：執行前 100 檔 隔日續強潛力股智慧掃描 ---
+# --- 主畫面：執行前 200 檔 隔日續強潛力股智慧掃描 (放寬量能) ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
 
   df_market_all = get_tw_stock_list_all()
   df_eps_pe_results = []
-  next_day_strong_pool = []  # 隔日續強潛力池
+  next_day_strong_pool = []
   strong_buy_pool = []
 
   pool_1256_strong = []
@@ -824,7 +825,8 @@ if run_scan or 'has_scanned_all' in st.session_state:
   pool_7_finmind_foreign = []
   pool_89_foreign = []
 
-  target_df = df_market_all.head(100)
+  # 將掃描檔數擴大到前 200 檔
+  target_df = df_market_all.head(200)
   total_items = len(target_df)
 
   progress_text = st.empty()
@@ -846,7 +848,8 @@ if run_scan or 'has_scanned_all' in st.session_state:
     pure_code = ticker.split('.')[0]
 
     progress_text.text(
-        f'正在掃描隔日續強機會股 ({i+1}/{total_items}): {ticker} {name}'
+        f'正在掃描前 200 檔隔日續強機會股 ({i+1}/{total_items}): {ticker}'
+        f' {name}'
     )
 
     eps_3q, pe_ratio, _ = get_single_stock_fundamental(ticker, price)
@@ -865,7 +868,8 @@ if run_scan or 'has_scanned_all' in st.session_state:
       if len(h_df) >= 20:
         vol_today = h_df['Volume'].iloc[-1]
 
-        if vol_today < 1000000:
+        # 已將成交量限制放寬至 300 張 (原為 1000 張)
+        if vol_today < 300000:
           progress_bar.progress((i + 1) / total_items)
           continue
 
@@ -879,28 +883,24 @@ if run_scan or 'has_scanned_all' in st.session_state:
         t_df = calculate_technical_indicators(h_df)
         latest_t = t_df.iloc[-1]
 
-        # 隔日高勝率續強核心指標計算
         close_p = latest_t['Close']
         high_p = latest_t['High']
         low_p = latest_t['Low']
         open_p = latest_t['Open']
         prev_close = h_df['Close'].iloc[-2]
 
-        # 1. 收盤強勢度 (收盤價逼近最高價，代表尾盤有買盤鎖碼)
         close_strength = (
             (close_p - low_p) / (high_p - low_p) * 100
             if (high_p - low_p) > 0
             else 50
         )
-        # 2. 當日漲幅
         pct_1d = ((close_p - prev_close) / prev_close) * 100
-        # 3. 量能放大倍率 (今日量大於5日均量)
-        vol_5d = h_df['Volume'].tail(6).iloc[:-1].mean()  # 排除今日的5日均量
+        vol_5d = h_df['Volume'].tail(6).iloc[:-1].mean()
         vol_ratio = vol_today / vol_5d if vol_5d > 0 else 1
 
-        # 隔日續強綜合得分：收盤強勢度 * 漲幅 * 量能倍率
-        if close_strength >= 70 and pct_1d > 0.5 and close_p >= latest_t['MA5']:
-          next_day_score = close_strength * max(pct_1d, 1) * min(vol_ratio, 3)
+        # 放寬條件：收盤強勢度只要大於 60 且溫和上漲或量增即可入選
+        if close_strength >= 60 and pct_1d > 0 and close_p >= latest_t['MA5']:
+          next_day_score = close_strength * max(pct_1d, 0.5) * min(vol_ratio, 3)
           next_day_strong_pool.append({
               '股票代號': ticker,
               '名稱': name,
@@ -909,32 +909,30 @@ if run_scan or 'has_scanned_all' in st.session_state:
               '收盤強勢度(%)': round(close_strength, 1),
               '量能放大倍率': round(vol_ratio, 2),
               '隔日續強得分': round(next_day_score, 1),
-              '特徵': '🚀 尾盤強鎖碼 + 均線之上',
+              '特徵': '🚀 尾盤穩健收高 + 均線之上',
           })
 
         vol_20d = int(h_df['Volume'].tail(20).mean() / 1000)
         vol_ratio_20 = (
             (vol_today / 1000) / vol_20d if vol_20d > 0 else 1
         )
-        avg_amplitude = (
-            (h_df['High'] - h_df['Low']) / h_df['Close']
-        ).tail(5).mean() * 100
-
-        close_p_val = latest_t['Close']
-        ma20_p = latest_t['MA20']
         pct_3d = (
             (h_df['Close'].iloc[-1] - h_df['Close'].iloc[-3])
             / h_df['Close'].iloc[-3]
         ) * 100
 
-        if close_p_val >= ma20_p and vol_ratio_20 >= 1.3 and pct_3d > 2.0:
+        if (
+            latest_t['Close'] >= latest_t['MA20']
+            and vol_ratio_20 >= 1.1
+            and pct_3d > 1.0
+        ):
           strong_buy_pool.append({
               '股票代號': ticker,
               '名稱': name,
               '收盤價': price,
               '近3日漲幅(%)': round(pct_3d, 2),
               '量能放大倍率': round(vol_ratio_20, 2),
-              'MA20支撐價': round(ma20_p, 2),
+              'MA20支撐價': round(latest_t['MA20'], 2),
               '訊號強度': round(pct_3d * vol_ratio_20, 2),
           })
 
@@ -944,7 +942,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
         ) * 100
         is_gap_up = h_df['Open'].iloc[-1] > h_df['Close'].iloc[-2]
 
-        if amplitude >= 3.5 and (pct_1d >= 2.0 or is_gap_up):
+        if amplitude >= 3.0 and (pct_1d >= 1.5 or is_gap_up):
           pool_1256_strong.append({
               '股票代號': ticker,
               '名稱': name,
@@ -953,7 +951,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
               '盤中振幅(%)': round(amplitude, 2),
               '成交量(張)': int(vol_today / 1000),
               '特徵': (
-                  '🚀 開高強勢 + 波動大'
+                  '🚀 開高強勢 + 波動'
                   if is_gap_up
                   else '🔥 長紅突破波動'
               ),
@@ -993,6 +991,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
                     len(last_3_f) >= 3
                     and all(last_3_f['外資買賣超(張)'] > 0)
                 )
+                # 同步放寬條件 7 的成交量門檻至 300 張
                 is_v_above_300 = len(last_3_v) >= 3 and all(
                     v >= 300000 for v in last_3_v
                 )
@@ -1047,7 +1046,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
   df_p7 = pd.DataFrame(pool_7_finmind_foreign)
   df_p9 = pd.DataFrame(pool_89_foreign)
 
-  st.success('🔥 前 100 檔 隔日續強潛力股智慧掃描完成！')
+  st.success('🔥 前 200 檔 隔日續強潛力股智慧掃描完成！')
 
   tab1, tab2, tab3, tab4, tab5 = st.tabs([
       '📊 全價格帶 EPS/本益比排行',
@@ -1080,20 +1079,17 @@ if run_scan or 'has_scanned_all' in st.session_state:
 
   with tab2:
     st.subheader(
-        '🚀 隔日高勝率續強排行榜 (尾盤收高、買盤鎖碼、均線多頭)'
+        '🚀 隔日高勝率續強排行榜 (擴大200檔、放寬量能與強勢度)'
     )
     if not df_nds.empty:
       st.dataframe(
           df_nds.sort_values(by='隔日續強得分', ascending=False)
-          .head(20)
+          .head(25)
           .reset_index(drop=True),
           use_container_width=True,
       )
     else:
-      st.info(
-          '今日盤勢收盤強勢度符合隔日續強條件的標的較少，建議盤後或尾盤再行'
-          '掃描。'
-      )
+      st.info('目前尚無符合放寬後條件的標的。')
 
   with tab3:
     st.subheader('🚀 主力急買訊號個股')
@@ -1151,5 +1147,5 @@ if run_scan or 'has_scanned_all' in st.session_state:
 else:
   if 'active_ticker' not in st.session_state:
     st.info(
-        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 100 檔 隔日高勝率續強潛力股智慧掃描」。'
+        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 200 檔 隔日高勝率續強潛力股智慧掃描 (放寬量能)」。'
     )
