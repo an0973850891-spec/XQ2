@@ -15,10 +15,10 @@ st.set_page_config(
 )
 
 st.title(
-    '📈 台股大盤趨勢、技術分析與 🔥 10 大條件盤中即時監控系統 (100檔全面掃描版)'
+    '📈 台股大盤趨勢、技術分析與 🔥 10 大條件盤中即時監控系統 (100檔全價格帶掃描版)'
 )
 st.markdown(
-    '本系統支援全市場前 100 檔熱門標的智慧掃描、個股獨立查詢、五大層級與當沖風險評估，並全面整合真實外資買賣超與 10 大盤中策略監控！'
+    '本系統支援全市場前 100 檔熱門標的智慧掃描（已取消價格限制）、個股獨立查詢、五大層級與當沖風險評估，並全面整合真實外資買賣超與 10 大盤中策略監控！'
 )
 
 # 忽略警告
@@ -516,7 +516,7 @@ if st.sidebar.button('🔄 重新整理 / 清除快取'):
   st.sidebar.success('快取已清除！')
 
 run_scan = st.sidebar.button(
-    '🚀 執行前 100 檔 FinMind 10 大條件盤中智慧掃描'
+    '🚀 執行前 100 檔 FinMind 10 大條件盤中智慧掃描 (全價格帶)'
 )
 
 
@@ -821,7 +821,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
   st.markdown('---')
 
 
-# --- 主畫面：執行前 100 檔 FinMind 10 大條件盤中即時掃描 ---
+# --- 主畫面：執行前 100 檔 FinMind 10 大條件盤中即時掃描 (無價格限制) ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
 
@@ -857,20 +857,20 @@ if run_scan or 'has_scanned_all' in st.session_state:
     pure_code = ticker.split('.')[0]
 
     progress_text.text(
-        f'正在透過 FinMind API 抓取籌碼並掃描 ({i+1}/{total_items}): {ticker}'
+        f'正在透過 FinMind API 掃描全價格帶 ({i+1}/{total_items}): {ticker}'
         f' {name}'
     )
 
-    if 20 <= price <= 50:
-      eps_3q, pe_ratio, _ = get_single_stock_fundamental(ticker, price)
-      if pe_ratio != 999:
-        df_eps_pe_results.append({
-            '股票代號': ticker,
-            '名稱': name,
-            '股價': price,
-            '近3季EPS': eps_3q,
-            '本益比': pe_ratio,
-        })
+    # 已取消 20-50 元價格限制，只要有抓到 EPS 與本益比即納入排行
+    eps_3q, pe_ratio, _ = get_single_stock_fundamental(ticker, price)
+    if pe_ratio != 999:
+      df_eps_pe_results.append({
+          '股票代號': ticker,
+          '名稱': name,
+          '股價': price,
+          '近3季EPS': eps_3q,
+          '本益比': pe_ratio,
+      })
 
     try:
       st_obj = yf.Ticker(ticker)
@@ -1041,10 +1041,10 @@ if run_scan or 'has_scanned_all' in st.session_state:
   df_p7 = pd.DataFrame(pool_7_finmind_foreign)
   df_p9 = pd.DataFrame(pool_89_foreign)
 
-  st.success('🔥 前 100 檔 FinMind 10 大條件盤中即時智慧掃描完成！')
+  st.success('🔥 前 100 檔全價格帶 FinMind 10 大條件盤中即時智慧掃描完成！')
 
   tab1, tab2, tab3, tab4, tab5 = st.tabs([
-      '📊 20-50元 EPS/本益比排行',
+      '📊 全價格帶 EPS/本益比排行',
       '🔥 當沖熱門排行榜',
       '🚀 主力急買訊號個股',
       '⚡ 10大條件：強勢/波動/開高/急拉 (1,2,5,6)',
@@ -1052,7 +1052,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
   ])
 
   with tab1:
-    st.subheader('近 3 季 EPS 與本益比排行 (20-50元)')
+    st.subheader('近 3 季 EPS 與本益比排行 (全價格帶)')
     if not df_ep.empty:
       c_sub1, c_sub2 = st.tabs(['EPS 排行', '本益比排行'])
       with c_sub1:
@@ -1141,5 +1141,5 @@ else:
   if 'active_ticker' not in st.session_state:
     st.info(
         '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 100 檔 FinMind 10'
-        ' 大條件盤中即時智慧掃描」。'
+        ' 大條件盤中即時智慧掃描 (全價格帶)」。'
     )
