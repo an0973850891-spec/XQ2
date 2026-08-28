@@ -10,15 +10,14 @@ import yfinance as yf
 
 # 網頁版面設定
 st.set_page_config(
-    page_title='台股篩選、大盤趨勢與 FinMind 10 大盤中策略監控系統',
-    layout='wide',
+    page_title='台股篩選、大盤趨勢與 隔日高勝率續強策略系統', layout='wide'
 )
 
 st.title(
-    '📈 台股大盤趨勢、技術分析與 🔥 10 大條件盤中即時監控系統 (100檔全價格帶掃描版)'
+    '📈 台股大盤趨勢、技術分析與 🔥 隔日高勝率續強機會潛力股掃描 (100檔全價格帶)'
 )
 st.markdown(
-    '本系統支援全市場前 100 檔熱門標的智慧掃描（已取消價格限制）、個股獨立查詢、五大層級與當沖風險評估，並全面整合真實外資買賣超與 10 大盤中策略監控！'
+    '本系統專為尋找**「隔日續強、高勝率漲勢」**設計，透過收盤強勢度、法人籌碼與量能放大，幫您篩選適合尾盤佈局的潛力標的！'
 )
 
 # 忽略警告
@@ -209,6 +208,7 @@ def get_single_stock_fundamental(ticker, price):
 
 def calculate_technical_indicators(df):
   df = df.copy()
+  df['MA5'] = df['Close'].rolling(window=5).mean()
   df['MA20'] = df['Close'].rolling(window=20).mean()
   df['MA60'] = df['Close'].rolling(window=60).mean()
   df['STD20'] = df['Close'].rolling(window=20).std()
@@ -326,29 +326,27 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
   if recent_vol_val < 1000000:
     dt_risk_score += 2
     dt_reasons.append(
-        '⚠️ **流動性警示**：今日成交量低於 1,000 張，當沖進出易受滑價影響。'
+        '⚠️ **流動性警示**：今日成交量低於 1,000 張，隔日開盤流動性較低。'
     )
   else:
     dt_reasons.append(
-        '✅ **流動性確認**：成交量超過 1,000 張，符合流動性條件。'
+        '✅ **流動性確認**：成交量超過 1,000 張，隔日進出順暢。'
     )
 
-  if close >= upper or close <= lower:
+  if close >= upper:
     dt_risk_score += 1
     dt_reasons.append(
-        '⚡ **乖離過大警示**：股價觸及布林上下極限，盤中追價或殺低易遭遇劇烈反向波動。'
+        '⚡ **乖離過大警示**：股價觸及布林上軌，隔日開高須防範短線獲利回吐。'
     )
   else:
-    dt_reasons.append('✅ **乖離穩定**：股價位於布林通道常態區。')
+    dt_reasons.append('✅ **乖離穩定**：多方續強空間健康。')
 
   if dt_risk_score >= 2:
-    day_trading_risk = (
-        '🔴 高風險 (量能不足或乖離過大，盤中易有突發劇烈震盪)'
-    )
+    day_trading_risk = '🔴 警戒 (流動性較差，隔日操作須設好停利停損)'
   elif dt_risk_score == 1:
-    day_trading_risk = '🟡 中風險 (多空拉鋸，當沖須嚴設停損)'
+    day_trading_risk = '🟡 注意 (短線偏熱，適合開盤觀察強弱)'
   else:
-    day_trading_risk = '🟢 低風險 (量能穩健、波動適中，適合短線當沖)'
+    day_trading_risk = '🟢 穩健 (量價齊揚，具備良好隔日續強條件)'
 
   risk_score = 0
   if rsi > 80 or rsi < 20:
@@ -359,11 +357,11 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
     risk_score += 1
 
   if risk_score >= 3:
-    risk_level = '🔴 高風險 (乖離過大、波動劇烈)'
+    risk_level = '🔴 高風險 (技術指標過熱)'
   elif risk_score == 2:
     risk_level = '🟡 中風險 (多空拉鋸)'
   else:
-    risk_level = '🟢 低風險 (指標穩定)'
+    risk_level = '🟢 低風險 (指標健康)'
 
   lt_score = 0
   lt_reasons = []
@@ -392,16 +390,9 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
   recent_avg_vol = hist_df['Volume'].tail(5).mean()
   price_change = close - prev['Close']
 
-  if price_change < 0 and recent_vol < recent_avg_vol:
-    lt_score += 1
-    lt_reasons.append(
-        '⚖️ **3 & 4. 量價關係**：近期回檔伴隨「量縮」，屬於正常修正。'
-    )
-  elif price_change < 0 and recent_vol > recent_avg_vol * 1.3:
-    lt_score -= 2
-    lt_reasons.append(
-        '⚠️ **3 & 4. 量價關係**：近期下跌伴隨「放量下殺」，主力調節中。'
-    )
+  if price_change > 0 and recent_vol > recent_avg_vol:
+    lt_score += 2
+    lt_reasons.append('🚀 **3 & 4. 量價關係**：今日上漲且伴隨「帶量」。')
   else:
     lt_reasons.append('⚪ **3 & 4. 量價關係**：量價結構平穩。')
 
@@ -422,11 +413,11 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
     )
 
   if lt_score >= 4:
-    lt_advice = '✅ **適合長期操作** (均線、量價與營收基本面俱佳)'
+    lt_advice = '✅ **適合短波段與隔日續強操作** (均線、量價與動能俱佳)'
   elif lt_score >= 1:
-    lt_advice = '⚠️ **逢低分批布局，嚴設停損** (多空交織，耐心築底)'
+    lt_advice = '⚠️ **逢低分批布局，嚴設停損** (多空交織，短線操作)'
   else:
-    lt_advice = '❌ **現階段不建議長期持有** (支撐失守或基本面轉弱)'
+    lt_advice = '❌ **現階段不建議留倉** (支撐失守或動能轉弱)'
 
   return (
       trend,
@@ -516,7 +507,7 @@ if st.sidebar.button('🔄 重新整理 / 清除快取'):
   st.sidebar.success('快取已清除！')
 
 run_scan = st.sidebar.button(
-    '🚀 執行前 100 檔 FinMind 10 大條件盤中智慧掃描 (全價格帶)'
+    '🚀 執行前 100 檔 隔日高勝率續強潛力股智慧掃描'
 )
 
 
@@ -692,9 +683,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
           )
 
         st.markdown('---')
-        st.markdown(
-            '### 🤖 AI 智能風險、當沖風險與專業長期策略評估'
-        )
+        st.markdown('### 🤖 AI 智能風險與隔日續強評估')
         ai_col1, ai_col2 = st.columns(2)
         with ai_col1:
           st.markdown(
@@ -707,15 +696,15 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
           st.markdown(
               f"""
                     - **🌀 布林位置：** {bb_pos}
-                    - **⚡ 當沖風險評估：** {day_trading_risk}
+                    - **⚡ 隔日續強留倉評估：** {day_trading_risk}
                     """
           )
 
-        st.success(f'**📌 長期操作策略評估結論：** {lt_advice}')
+        st.success(f'**📌 長期與短波段操作策略評估結論：** {lt_advice}')
 
         exp_col1, exp_col2 = st.columns(2)
         with exp_col1:
-          with st.expander('🔍 查看詳細的當沖風險檢查依據'):
+          with st.expander('🔍 查看詳細的隔日續強檢查依據'):
             for reason in dt_reasons:
               st.markdown(f'- {reason}')
         with exp_col2:
@@ -821,13 +810,13 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
   st.markdown('---')
 
 
-# --- 主畫面：執行前 100 檔 FinMind 10 大條件盤中即時掃描 (無價格限制) ---
+# --- 主畫面：執行前 100 檔 隔日續強潛力股智慧掃描 ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
 
   df_market_all = get_tw_stock_list_all()
   df_eps_pe_results = []
-  day_trading_pool = []
+  next_day_strong_pool = []  # 隔日續強潛力池
   strong_buy_pool = []
 
   pool_1256_strong = []
@@ -857,11 +846,9 @@ if run_scan or 'has_scanned_all' in st.session_state:
     pure_code = ticker.split('.')[0]
 
     progress_text.text(
-        f'正在透過 FinMind API 掃描全價格帶 ({i+1}/{total_items}): {ticker}'
-        f' {name}'
+        f'正在掃描隔日續強機會股 ({i+1}/{total_items}): {ticker} {name}'
     )
 
-    # 已取消 20-50 元價格限制，只要有抓到 EPS 與本益比即納入排行
     eps_3q, pe_ratio, _ = get_single_stock_fundamental(ticker, price)
     if pe_ratio != 999:
       df_eps_pe_results.append({
@@ -874,7 +861,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
 
     try:
       st_obj = yf.Ticker(ticker)
-      h_df = st_obj.history(period='1mo')
+      h_df = st_obj.history(period='1.5mo')
       if len(h_df) >= 20:
         vol_today = h_df['Volume'].iloc[-1]
 
@@ -892,40 +879,63 @@ if run_scan or 'has_scanned_all' in st.session_state:
         t_df = calculate_technical_indicators(h_df)
         latest_t = t_df.iloc[-1]
 
-        vol_5d = int(h_df['Volume'].tail(5).mean() / 1000)
+        # 隔日高勝率續強核心指標計算
+        close_p = latest_t['Close']
+        high_p = latest_t['High']
+        low_p = latest_t['Low']
+        open_p = latest_t['Open']
+        prev_close = h_df['Close'].iloc[-2]
+
+        # 1. 收盤強勢度 (收盤價逼近最高價，代表尾盤有買盤鎖碼)
+        close_strength = (
+            (close_p - low_p) / (high_p - low_p) * 100
+            if (high_p - low_p) > 0
+            else 50
+        )
+        # 2. 當日漲幅
+        pct_1d = ((close_p - prev_close) / prev_close) * 100
+        # 3. 量能放大倍率 (今日量大於5日均量)
+        vol_5d = h_df['Volume'].tail(6).iloc[:-1].mean()  # 排除今日的5日均量
+        vol_ratio = vol_today / vol_5d if vol_5d > 0 else 1
+
+        # 隔日續強綜合得分：收盤強勢度 * 漲幅 * 量能倍率
+        if close_strength >= 70 and pct_1d > 0.5 and close_p >= latest_t['MA5']:
+          next_day_score = close_strength * max(pct_1d, 1) * min(vol_ratio, 3)
+          next_day_strong_pool.append({
+              '股票代號': ticker,
+              '名稱': name,
+              '收盤價': price,
+              '當日漲幅(%)': round(pct_1d, 2),
+              '收盤強勢度(%)': round(close_strength, 1),
+              '量能放大倍率': round(vol_ratio, 2),
+              '隔日續強得分': round(next_day_score, 1),
+              '特徵': '🚀 尾盤強鎖碼 + 均線之上',
+          })
+
         vol_20d = int(h_df['Volume'].tail(20).mean() / 1000)
-        vol_ratio = vol_5d / vol_20d if vol_20d > 0 else 1
+        vol_ratio_20 = (
+            (vol_today / 1000) / vol_20d if vol_20d > 0 else 1
+        )
         avg_amplitude = (
             (h_df['High'] - h_df['Low']) / h_df['Close']
         ).tail(5).mean() * 100
 
-        day_trading_score = vol_ratio * avg_amplitude
-        day_trading_pool.append({
-            '股票代號': ticker,
-            '名稱': name,
-            '收盤價': price,
-            '5日平均成交量(張)': vol_5d,
-            '量能放大倍率': round(vol_ratio, 2),
-            '平均振幅(%)': round(avg_amplitude, 2),
-            '當沖熱度分數': round(day_trading_score, 2),
-        })
-
-        close_p = latest_t['Close']
+        close_p_val = latest_t['Close']
         ma20_p = latest_t['MA20']
         pct_3d = (
             (h_df['Close'].iloc[-1] - h_df['Close'].iloc[-3])
             / h_df['Close'].iloc[-3]
         ) * 100
 
-        if close_p >= ma20_p and vol_ratio >= 1.3 and pct_3d > 2.0:
+        if close_p_val >= ma20_p and vol_ratio_20 >= 1.3 and pct_3d > 2.0:
           strong_buy_pool.append({
               '股票代號': ticker,
               '名稱': name,
               '收盤價': price,
               '近3日漲幅(%)': round(pct_3d, 2),
-              '量能放大倍率': round(vol_ratio, 2),
+              '量能放大倍率': round(vol_ratio_20, 2),
               'MA20支撐價': round(ma20_p, 2),
-              '訊號強度': round(pct_3d * vol_ratio, 2),
+              '訊號強度': round(pct_3d * vol_ratio_20, 2),
           })
 
         amplitude = (
@@ -933,10 +943,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
             / h_df['Close'].iloc[-2]
         ) * 100
         is_gap_up = h_df['Open'].iloc[-1] > h_df['Close'].iloc[-2]
-        pct_1d = (
-            (h_df['Close'].iloc[-1] - h_df['Close'].iloc[-2])
-            / h_df['Close'].iloc[-2]
-        ) * 100
 
         if amplitude >= 3.5 and (pct_1d >= 2.0 or is_gap_up):
           pool_1256_strong.append({
@@ -947,9 +953,9 @@ if run_scan or 'has_scanned_all' in st.session_state:
               '盤中振幅(%)': round(amplitude, 2),
               '成交量(張)': int(vol_today / 1000),
               '特徵': (
-                  '🚀 開高強勢 + 急拉'
+                  '🚀 開高強勢 + 波動大'
                   if is_gap_up
-                  else '🔥 長紅/長黑波動大'
+                  else '🔥 長紅突破波動'
               ),
           })
 
@@ -1035,18 +1041,18 @@ if run_scan or 'has_scanned_all' in st.session_state:
   progress_bar.empty()
 
   df_ep = pd.DataFrame(df_eps_pe_results)
-  df_dt = pd.DataFrame(day_trading_pool)
+  df_nds = pd.DataFrame(next_day_strong_pool)
   df_sb = pd.DataFrame(strong_buy_pool)
   df_p1 = pd.DataFrame(pool_1256_strong)
   df_p7 = pd.DataFrame(pool_7_finmind_foreign)
   df_p9 = pd.DataFrame(pool_89_foreign)
 
-  st.success('🔥 前 100 檔全價格帶 FinMind 10 大條件盤中即時智慧掃描完成！')
+  st.success('🔥 前 100 檔 隔日續強潛力股智慧掃描完成！')
 
   tab1, tab2, tab3, tab4, tab5 = st.tabs([
       '📊 全價格帶 EPS/本益比排行',
-      '🔥 當沖熱門排行榜',
-      '🚀 主力急買訊號個股',
+      '🚀 隔日高勝率續強排行榜',
+      '🔥 主力急買訊號個股',
       '⚡ 10大條件：強勢/波動/開高/急拉 (1,2,5,6)',
       '🏛️ 10大條件：FinMind真實外資與籌碼鎖定 (7,8,9)',
   ])
@@ -1073,16 +1079,21 @@ if run_scan or 'has_scanned_all' in st.session_state:
       st.warning('目前無符合條件股票。')
 
   with tab2:
-    st.subheader('🔥 當沖熱門排行榜')
-    if not df_dt.empty:
+    st.subheader(
+        '🚀 隔日高勝率續強排行榜 (尾盤收高、買盤鎖碼、均線多頭)'
+    )
+    if not df_nds.empty:
       st.dataframe(
-          df_dt.sort_values(by='當沖熱度分數', ascending=False)
+          df_nds.sort_values(by='隔日續強得分', ascending=False)
           .head(20)
           .reset_index(drop=True),
           use_container_width=True,
       )
     else:
-      st.warning('無資料。')
+      st.info(
+          '今日盤勢收盤強勢度符合隔日續強條件的標的較少，建議盤後或尾盤再行'
+          '掃描。'
+      )
 
   with tab3:
     st.subheader('🚀 主力急買訊號個股')
@@ -1140,6 +1151,5 @@ if run_scan or 'has_scanned_all' in st.session_state:
 else:
   if 'active_ticker' not in st.session_state:
     st.info(
-        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 100 檔 FinMind 10'
-        ' 大條件盤中即時智慧掃描 (全價格帶)」。'
+        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 100 檔 隔日高勝率續強潛力股智慧掃描」。'
     )
