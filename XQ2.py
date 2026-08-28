@@ -14,10 +14,10 @@ st.set_page_config(
 )
 
 st.title(
-    '📈 台股大盤趨勢、技術分析與 🔥 隔日高勝率續強機會潛力股掃描 (200檔放寬量能版)'
+    '📈 台股大盤趨勢、技術分析與 🔥 隔日高勝率續強機會潛力股掃描 (200檔強固防錯版)'
 )
 st.markdown(
-    '本系統已將掃描範圍擴大至 **200 檔**並**放寬成交量限制**，助您精準捕捉中小型潛力股與隔日續強機會！'
+    '本系統已全面修復資料型態與邏輯運算錯誤，支援 200 檔全價格帶與隔日高勝率續強智慧掃描！'
 )
 
 # 忽略警告
@@ -293,15 +293,15 @@ def calculate_support_resistance(hist_df):
 
 
 def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
-  close = latest['Close']
-  ma20 = latest['MA20']
-  ma60 = latest['MA60']
-  k = latest['K']
-  d = latest['D']
-  rsi = latest['RSI']
-  macd_osc = latest['MACD_OSC']
-  upper = latest['BB_Upper']
-  lower = latest['BB_Lower']
+  close = float(latest['Close'])
+  ma20 = float(latest['MA20'])
+  ma60 = float(latest['MA60'])
+  k = float(latest['K'])
+  d = float(latest['D'])
+  rsi = float(latest['RSI'])
+  macd_osc = float(latest['MACD_OSC'])
+  upper = float(latest['BB_Upper'])
+  lower = float(latest['BB_Lower'])
 
   if close > ma20 and ma20 > ma60 and macd_osc > 0:
     trend = '📈 多頭排列 (偏多)'
@@ -319,7 +319,7 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
   else:
     bb_pos = '⬇️ 中軌與下軌之間 (弱勢區)'
 
-  recent_vol_val = hist_df['Volume'].iloc[-1]
+  recent_vol_val = float(hist_df['Volume'].iloc[-1])
   dt_risk_score = 0
   dt_reasons = []
 
@@ -386,9 +386,9 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
         '❌ **2 & 3. 趨勢與動能 (MA60 + MACD)**：大級別趨勢偏向保守。'
     )
 
-  recent_vol = hist_df['Volume'].iloc[-1]
-  recent_avg_vol = hist_df['Volume'].tail(5).mean()
-  price_change = close - prev['Close']
+  recent_vol = float(hist_df['Volume'].iloc[-1])
+  recent_avg_vol = float(hist_df['Volume'].tail(5).mean())
+  price_change = close - float(prev['Close'])
 
   if price_change > 0 and recent_vol > recent_avg_vol:
     lt_score += 2
@@ -683,7 +683,6 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
           )
 
         st.markdown('---')
-        # 標題已加上個股名稱
         st.markdown(f'### 🤖 AI 智能風險與隔日續強評估：{display_title}')
         ai_col1, ai_col2 = st.columns(2)
         with ai_col1:
@@ -701,11 +700,11 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
                     """
           )
 
-        # 💡 新增建議價位區塊
+        # 建議價位提示框
         st.info(
             f'💡 **【短線/隔日續強操作建議價位】**\n\n'
-            f'- 🟢 **建議買進/佈局參考區間**：約 `{~round(pivot_p * 0.99, 2)}` ~'
-            f' `{pivot_p}` (靠近多空分水嶺或支撐區)\n'
+            f'- 🟢 **建議買進/佈局參考區間**：約'
+            f' `{round(pivot_p * 0.99, 2)}` ~ `{pivot_p}` (靠近多空分水嶺或支撐區)\n'
             f'- 🛑 **嚴設停損防守價**：`{support_p}` (跌破強力支撐建議視情況出場)\n'
             f'- 🎯 **短線目標壓力價**：`{resistance_p}` (逢高接近此壓力區可留意獲利調節)'
         )
@@ -890,11 +889,11 @@ if run_scan or 'has_scanned_all' in st.session_state:
         t_df = calculate_technical_indicators(h_df)
         latest_t = t_df.iloc[-1]
 
-        close_p = latest_t['Close']
-        high_p = latest_t['High']
-        low_p = latest_t['Low']
-        open_p = latest_t['Open']
-        prev_close = h_df['Close'].iloc[-2]
+        close_p = float(latest_t['Close'])
+        high_p = float(latest_t['High'])
+        low_p = float(latest_t['Low'])
+        open_p = float(latest_t['Open'])
+        prev_close = float(h_df['Close'].iloc[-2])
 
         close_strength = (
             (close_p - low_p) / (high_p - low_p) * 100
@@ -902,10 +901,10 @@ if run_scan or 'has_scanned_all' in st.session_state:
             else 50
         )
         pct_1d = ((close_p - prev_close) / prev_close) * 100
-        vol_5d = h_df['Volume'].tail(6).iloc[:-1].mean()
+        vol_5d = float(h_df['Volume'].tail(6).iloc[:-1].mean())
         vol_ratio = vol_today / vol_5d if vol_5d > 0 else 1
 
-        if close_strength >= 60 and pct_1d > 0 and close_p >= latest_t['MA5']:
+        if close_strength >= 60 and pct_1d > 0 and close_p >= float(latest_t['MA5']):
           next_day_score = close_strength * max(pct_1d, 0.5) * min(vol_ratio, 3)
           next_day_strong_pool.append({
               '股票代號': ticker,
@@ -923,12 +922,12 @@ if run_scan or 'has_scanned_all' in st.session_state:
             (vol_today / 1000) / vol_20d if vol_20d > 0 else 1
         )
         pct_3d = (
-            (h_df['Close'].iloc[-1] - h_df['Close'].iloc[-3])
-            / h_df['Close'].iloc[-3]
+            (float(h_df['Close'].iloc[-1]) - float(h_df['Close'].iloc[-3]))
+            / float(h_df['Close'].iloc[-3])
         ) * 100
 
         if (
-            latest_t['Close'] >= latest_t['MA20']
+            float(latest_t['Close']) >= float(latest_t['MA20'])
             and vol_ratio_20 >= 1.1
             and pct_3d > 1.0
         ):
@@ -938,15 +937,17 @@ if run_scan or 'has_scanned_all' in st.session_state:
               '收盤價': price,
               '近3日漲幅(%)': round(pct_3d, 2),
               '量能放大倍率': round(vol_ratio_20, 2),
-              'MA20支撐價': round(latest_t['MA20'], 2),
+              'MA20支撐價': round(float(latest_t['MA20']), 2),
               '訊號強度': round(pct_3d * vol_ratio_20, 2),
           })
 
         amplitude = (
-            (h_df['High'].iloc[-1] - h_df['Low'].iloc[-1])
-            / h_df['Close'].iloc[-2]
+            (float(h_df['High'].iloc[-1]) - float(h_df['Low'].iloc[-1]))
+            / float(h_df['Close'].iloc[-2])
         ) * 100
-        is_gap_up = h_df['Open'].iloc[-1] > h_df['Close'].iloc[-2]
+        is_gap_up = float(h_df['Open'].iloc[-1]) > float(
+            h_df['Close'].iloc[-2]
+        )
 
         if amplitude >= 3.0 and (pct_1d >= 1.5 or is_gap_up):
           pool_1256_strong.append({
@@ -1019,8 +1020,8 @@ if run_scan or 'has_scanned_all' in st.session_state:
 
         _, _, rev_growth = get_single_stock_fundamental(ticker, price)
         is_ma_up = (
-            latest_t['Close'] > latest_t['MA20']
-            and latest_t['MA20'] > t_df['MA20'].iloc[-5]
+            float(latest_t['Close']) > float(latest_t['MA20'])
+            and float(latest_t['MA20']) > float(t_df['MA20'].iloc[-5])
         )
 
         if is_ma_up and rev_growth >= 0:
