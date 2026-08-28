@@ -14,10 +14,10 @@ st.set_page_config(
 )
 
 st.title(
-    '📈 台股大盤技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (200檔專業策略版)'
+    '📈 台股大盤技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (含布林通道完整版)'
 )
 st.markdown(
-    '本系統支援 200 檔全價格帶掃描，全新加入 **「紅K突破 + 量能放大 1.5-2倍 + 回踩不破 + 5MA>10MA>20MA 多頭排列」** 的高勝率進場機會股策略！'
+    '本系統支援 200 檔全價格帶掃描，並已將技術線圖恢復為 **「布林通道 + MA5/10/20多頭排列」** 完整顯示！'
 )
 
 # 忽略警告
@@ -745,6 +745,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             col=1,
         )
 
+        # 均線群組 (MA5, MA10, MA20)
         fig.add_trace(
             go.Scatter(
                 x=tech_df.index,
@@ -776,6 +777,28 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             col=1,
         )
 
+        # 恢復布林通道上下軌
+        fig.add_trace(
+            go.Scatter(
+                x=tech_df.index,
+                y=tech_df['BB_Upper'],
+                line=dict(color='orange', width=1, dash='dash'),
+                name='BB Upper',
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=tech_df.index,
+                y=tech_df['BB_Lower'],
+                line=dict(color='green', width=1, dash='dash'),
+                name='BB Lower',
+            ),
+            row=1,
+            col=1,
+        )
+
         colors = [
             'red' if row['Close'] >= row['Open'] else 'green'
             for idx, row in tech_df.iterrows()
@@ -794,7 +817,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
         )
 
         fig.update_layout(
-            title=f'{display_title} - 互動式技術線圖與均線',
+            title=f'{display_title} - 互動式技術線圖、均線與布林通道',
             xaxis_rangeslider_visible=False,
             height=700,
             hovermode='x unified',
@@ -865,7 +888,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
       if len(h_df) >= 25:
         vol_today = float(h_df['Volume'].iloc[-1])
 
-        # 流動性過濾 (大於300張)
         if vol_today < 300000:
           progress_bar.progress((i + 1) / total_items)
           continue
@@ -873,7 +895,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
         t_df = calculate_technical_indicators(h_df)
         latest_t = t_df.iloc[-1]
 
-        # 條件 5：5MA > 10MA > 20MA 多頭排列
         ma5 = float(latest_t['MA5'])
         ma10 = float(latest_t['MA10'])
         ma20 = float(latest_t['MA20'])
@@ -883,7 +904,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
           progress_bar.progress((i + 1) / total_items)
           continue
 
-        # 取得近幾日K線資料以檢驗突破與回踩
         c_latest = float(h_df['Close'].iloc[-1])
         o_latest = float(h_df['Open'].iloc[-1])
         h_latest = float(h_df['High'].iloc[-1])
@@ -893,14 +913,9 @@ if run_scan or 'has_scanned_all' in st.session_state:
         o_prev1 = float(h_df['Open'].iloc[-2])
         h_prev1 = float(h_df['High'].iloc[-2])
 
-        c_prev2 = float(h_df['Close'].iloc[-3])
-        o_prev2 = float(h_df['Open'].iloc[-3])
-
-        # 成交量放大 1.5 ~ 2倍 (相對於20日均量或前一日)
         vol_20d = float(h_df['Volume'].tail(20).mean())
         vol_ratio = vol_today / vol_20d if vol_20d > 0 else 1
 
-        # 條件 7 過濾：拒絕上影線過長 + 爆大量或乖離過大
         body_len = abs(c_latest - o_latest)
         upper_shadow = h_latest - max(c_latest, o_latest)
         is_long_upper_shadow = upper_shadow > body_len * 1.5 and vol_ratio > 2.5
@@ -909,13 +924,9 @@ if run_scan or 'has_scanned_all' in st.session_state:
           progress_bar.progress((i + 1) / total_items)
           continue
 
-        # 條件 1 & 2：前幾日有紅K突破前高/平台，且成交量放大 1.5 ~ 2 倍
-        # 條件 3 & 4：回踩不破紅K實體 1/2，且第3根（今日）轉強
-        # 我們檢查最近 3 天內是否符合「突破紅K + 隨後回踩未破半 + 今日轉強」
         is_breakout_pattern = False
         breakout_score = 0
 
-        # 檢視前天 (prev2) 或大前天是否為帶量突破紅K
         for idx in range(-5, -2):
           if abs(h_df.index.get_loc(h_df.index[idx])) < len(h_df) - 3:
             continue
@@ -925,22 +936,18 @@ if run_scan or 'has_scanned_all' in st.session_state:
           v_avg = float(h_df['Volume'].iloc[idx - 20 : idx].mean())
           v_rat = v_p / v_avg if v_avg > 0 else 1
 
-          # 必須是紅K突破且量增 1.4 ~ 2.5 倍
           if c_p > o_p and v_rat >= 1.4:
-            # 檢查後續是否回踩未破該紅K實體一半
             red_half = o_p + (c_p - o_p) * 0.5
             sub_pullback_lows = [
                 float(h_df['Low'].iloc[idx + 1]),
                 float(h_df['Low'].iloc[idx + 2]),
             ]
             if all(l >= red_half for l in sub_pullback_lows):
-              # 今日轉強 (收紅K且收盤高於昨日)
               if c_latest > o_latest and c_latest > c_prev1:
                 is_breakout_pattern = True
                 breakout_score = v_rat * (c_latest / red_half)
                 break
 
-        # 如果符合突破回踩轉強策略
         if is_breakout_pattern:
           breakout_pullback_pool.append({
               '股票代號': ticker,
@@ -952,7 +959,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
               '特徵': '🎯 紅K突破 + 回踩不破半 + 轉強',
           })
 
-        # 同時保留原有的 10 大條件分頁資料供對照
         if vol_today >= 300000:
           pool_3_liquidity.append({
               '股票代號': ticker,
