@@ -498,7 +498,7 @@ st.markdown('---')
 # --- 側邊欄：控制面板 ---
 st.sidebar.header('⚙️ 控制面板')
 input_ticker = st.sidebar.text_input(
-    '輸入個股代號查詢 (例如: 1102.TW 或 2330.TW)', value=''
+    '輸入個股代號查詢 (例如: 上市2330.TW 或 上櫃5351.TWO)', value=''
 )
 search_btn = st.sidebar.button('🔍 確認查詢個股', type='primary')
 
