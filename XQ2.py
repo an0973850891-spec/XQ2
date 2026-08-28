@@ -323,7 +323,6 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
   dt_risk_score = 0
   dt_reasons = []
 
-  # 放寬流動性警示門檻至 300 張
   if recent_vol_val < 300000:
     dt_risk_score += 2
     dt_reasons.append(
@@ -684,6 +683,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
           )
 
         st.markdown('---')
+        # 標題已加上個股名稱
         st.markdown(f'### 🤖 AI 智能風險與隔日續強評估：{display_title}')
         ai_col1, ai_col2 = st.columns(2)
         with ai_col1:
@@ -700,6 +700,15 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
                     - **⚡ 隔日續強留倉評估：** {day_trading_risk}
                     """
           )
+
+        # 💡 新增建議價位區塊
+        st.info(
+            f'💡 **【短線/隔日續強操作建議價位】**\n\n'
+            f'- 🟢 **建議買進/佈局參考區間**：約 `{~round(pivot_p * 0.99, 2)}` ~'
+            f' `{pivot_p}` (靠近多空分水嶺或支撐區)\n'
+            f'- 🛑 **嚴設停損防守價**：`{support_p}` (跌破強力支撐建議視情況出場)\n'
+            f'- 🎯 **短線目標壓力價**：`{resistance_p}` (逢高接近此壓力區可留意獲利調節)'
+        )
 
         st.success(f'**📌 長期與短波段操作策略評估結論：** {lt_advice}')
 
@@ -825,7 +834,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
   pool_7_finmind_foreign = []
   pool_89_foreign = []
 
-  # 將掃描檔數擴大到前 200 檔
   target_df = df_market_all.head(200)
   total_items = len(target_df)
 
@@ -868,7 +876,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
       if len(h_df) >= 20:
         vol_today = h_df['Volume'].iloc[-1]
 
-        # 已將成交量限制放寬至 300 張 (原為 1000 張)
         if vol_today < 300000:
           progress_bar.progress((i + 1) / total_items)
           continue
@@ -898,7 +905,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
         vol_5d = h_df['Volume'].tail(6).iloc[:-1].mean()
         vol_ratio = vol_today / vol_5d if vol_5d > 0 else 1
 
-        # 放寬條件：收盤強勢度只要大於 60 且溫和上漲或量增即可入選
         if close_strength >= 60 and pct_1d > 0 and close_p >= latest_t['MA5']:
           next_day_score = close_strength * max(pct_1d, 0.5) * min(vol_ratio, 3)
           next_day_strong_pool.append({
@@ -991,7 +997,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
                     len(last_3_f) >= 3
                     and all(last_3_f['外資買賣超(張)'] > 0)
                 )
-                # 同步放寬條件 7 的成交量門檻至 300 張
                 is_v_above_300 = len(last_3_v) >= 3 and all(
                     v >= 300000 for v in last_3_v
                 )
