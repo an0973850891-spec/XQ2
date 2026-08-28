@@ -684,7 +684,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
           )
 
         st.markdown('---')
-        st.markdown('### 🤖 AI 智能風險與隔日續強評估{display_title}')
+        st.markdown(f'### 🤖 AI 智能風險與隔日續強評估：{display_title}')
         ai_col1, ai_col2 = st.columns(2)
         with ai_col1:
           st.markdown(
