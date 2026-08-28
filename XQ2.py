@@ -15,11 +15,10 @@ st.set_page_config(
 )
 
 st.title(
-    '📈 台股大盤趨勢、技術分析與 🔥 10 大條件盤中即時監控系統 (FinMind'
-    ' API 穩定版)'
+    '📈 台股大盤趨勢、技術分析與 🔥 10 大條件盤中即時監控系統 (100檔全面掃描版)'
 )
 st.markdown(
-    '本系統支援全市場前 40 檔熱門標的智慧掃描、個股獨立查詢、五大層級與當沖風險評估，並全面整合真實外資買賣超與 10 大盤中策略監控！'
+    '本系統支援全市場前 100 檔熱門標的智慧掃描、個股獨立查詢、五大層級與當沖風險評估，並全面整合真實外資買賣超與 10 大盤中策略監控！'
 )
 
 # 忽略警告
@@ -492,7 +491,7 @@ if st.sidebar.button('🔄 重新整理 / 清除快取'):
   st.sidebar.success('快取已清除！')
 
 run_scan = st.sidebar.button(
-    '🚀 執行前 40 檔 FinMind 10 大條件盤中智慧掃描'
+    '🚀 執行前 100 檔 FinMind 10 大條件盤中智慧掃描'
 )
 
 
@@ -797,7 +796,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
   st.markdown('---')
 
 
-# --- 主畫面：執行 FinMind 10 大條件盤中即時掃描 ---
+# --- 主畫面：執行前 100 檔 FinMind 10 大條件盤中即時掃描 ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
 
@@ -811,7 +810,8 @@ if run_scan or 'has_scanned_all' in st.session_state:
   pool_7_finmind_foreign = []
   pool_89_foreign = []
 
-  target_df = df_market_all.head(40)
+  # 將掃描範圍擴大為前 100 檔
+  target_df = df_market_all.head(100)
   total_items = len(target_df)
 
   progress_text = st.empty()
@@ -929,7 +929,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
               ),
           })
 
-        # 改用 FinMind 官方 HTTP API 取得三大法人外資資料，避開套件相容性崩潰
         try:
           finmind_url = 'https://api.finmindtrade.com/api/v4/data'
           params = {
@@ -1018,7 +1017,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
   df_p7 = pd.DataFrame(pool_7_finmind_foreign)
   df_p9 = pd.DataFrame(pool_89_foreign)
 
-  st.success('🔥 FinMind 10 大條件盤中即時智慧掃描完成！')
+  st.success('🔥 前 100 檔 FinMind 10 大條件盤中即時智慧掃描完成！')
 
   tab1, tab2, tab3, tab4, tab5 = st.tabs([
       '📊 20-50元 EPS/本益比排行',
@@ -1089,7 +1088,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
 
   with tab5:
     st.subheader(
-        '🏛️ 盤中 10 大條件：FinMind真實外資買超與籌碼鎖定 (Formal 7, 8, 9)'
+        '🏛️ 盤中 10 大條件：FinMind真實外資買超與籌碼鎖定 (符合條件 7, 8, 9)'
     )
     sub_7, sub_89 = st.tabs(
         [
@@ -1117,5 +1116,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
 else:
   if 'active_ticker' not in st.session_state:
     st.info(
-        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 40 檔 FinMind 10 大條件盤中即時智慧掃描」。'
+        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 100 檔 FinMind 10'
+        ' 大條件盤中即時智慧掃描」。'
     )
