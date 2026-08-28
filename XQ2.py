@@ -17,7 +17,7 @@ st.title(
     '📈 台股大盤技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (含布林通道完整版)'
 )
 st.markdown(
-    '本系統支援 200 檔全價格帶掃描，並已將技術線圖恢復為 **「布林通道 + MA5/10/20多頭排列」** 完整顯示！'
+    '本系統支援全價格帶掃描，並已將技術線圖恢復為 **「布林通道 + MA5/10/20多頭排列」** 完整顯示！'
 )
 
 # 忽略警告
@@ -498,7 +498,7 @@ st.markdown('---')
 # --- 側邊欄：控制面板 ---
 st.sidebar.header('⚙️ 控制面板')
 input_ticker = st.sidebar.text_input(
-    '輸入個股代號查詢 (例如: 1102.TW 或 2330.TW)', value=''
+    '輸入個股代號查詢 (例如: 上市2230.TW 或 上櫃5351.TWO)', value=''
 )
 search_btn = st.sidebar.button('🔍 確認查詢個股', type='primary')
 
@@ -508,7 +508,7 @@ if st.sidebar.button('🔄 重新整理 / 清除快取'):
   st.sidebar.success('快取已清除！')
 
 run_scan = st.sidebar.button(
-    '🚀 執行前 200 檔 🎯 突破回踩進場機會股智慧掃描'
+    '🚀 執行前 800 檔 🎯 突破回踩進場機會股智慧掃描'
 )
 
 
@@ -833,7 +833,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
   st.markdown('---')
 
 
-# --- 主畫面：執行前 200 檔 🎯 突破回踩進場機會股智慧掃描 ---
+# --- 主畫面：執行前 800 檔 🎯 突破回踩進場機會股智慧掃描 ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
 
@@ -847,7 +847,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
   pool_7_finmind_foreign = []
   pool_89_foreign = []
 
-  target_df = df_market_all.head(200)
+  target_df = df_market_all.head(800)
   total_items = len(target_df)
 
   progress_text = st.empty()
@@ -979,7 +979,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
   df_bp = pd.DataFrame(breakout_pullback_pool)
   df_sb = pd.DataFrame(strong_buy_pool)
 
-  st.success('🔥 前 200 檔 🎯 突破回踩進場機會股智慧掃描完成！')
+  st.success('🔥 前 800 檔 🎯 突破回踩進場機會股智慧掃描完成！')
 
   tab1, tab2, tab3 = st.tabs([
       '🎯 突破回踩進場機會股 (核心策略)',
