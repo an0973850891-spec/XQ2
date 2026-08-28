@@ -29,7 +29,6 @@ warnings.filterwarnings('ignore')
 @st.cache_data(ttl=3600)
 def get_tw_stock_list_all():
   stock_list = []
-  # 1. 抓取上市股票清單 (TWSE)
   try:
     url_tse = 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL'
     res = requests.get(url_tse, timeout=10)
@@ -58,7 +57,6 @@ def get_tw_stock_list_all():
   except Exception as e:
     st.warning(f'抓取上市清單警告: {e}')
 
-  # 2. 抓取上櫃股票清單 (TPEX) - 加上防呆與錯誤保護
   try:
     url_otc = 'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes'
     res = requests.get(url_otc, verify=False, timeout=10)
@@ -96,7 +94,6 @@ def get_tw_stock_list_all():
               '收盤價': price_val,
           })
   except Exception as e:
-    # 就算上櫃清單一時連線失敗，也不會讓整個 App 當機，會以現有上市資料繼續運作
     st.warning(
         '⚠️ 櫃買中心 (TPEX) 伺服器回應異常，暫以上市股票與快取資料運行。'
     )
@@ -244,6 +241,41 @@ def calculate_technical_indicators(df):
   df['MACD_OSC'] = (df['MACD_DIF'] - df['MACD_DEM']) * 2
 
   return df
+
+
+def get_multi_period_chips(hist_df):
+  results = {}
+  periods = [3, 5, 10, 20]
+  for p in periods:
+    if len(hist_df) >= p:
+      sub_df = hist_df.tail(p)
+      total_vol = int(sub_df['Volume'].sum() / 1000)
+      avg_vol = int(sub_df['Volume'].mean() / 1000)
+      price_start = sub_df['Close'].iloc[0]
+      price_end = sub_df['Close'].iloc[-1]
+      pct_change = ((price_end - price_start) / price_start) * 100
+
+      if pct_change > 0:
+        status = '🟢 主力偏多吸籌'
+      elif pct_change < 0:
+        status = '🔴 主力調節賣超'
+      else:
+        status = '⚪ 區間震盪觀望'
+
+      results[f'{p}日'] = {
+          '漲跌幅': round(pct_change, 2),
+          '均量(張)': avg_vol,
+          '總量(張)': total_vol,
+          '狀態': status,
+      }
+    else:
+      results[f'{p}日'] = {
+          '漲跌幅': 0.0,
+          '均量(張)': 0,
+          '總量(張)': 0,
+          '狀態': '資料不足',
+      }
+  return results
 
 
 def calculate_support_resistance(hist_df):
