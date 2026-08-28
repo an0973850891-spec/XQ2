@@ -29,49 +29,77 @@ warnings.filterwarnings('ignore')
 @st.cache_data(ttl=3600)
 def get_tw_stock_list_all():
   stock_list = []
+  # 1. 抓取上市股票清單 (TWSE)
   try:
     url_tse = 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL'
     res = requests.get(url_tse, timeout=10)
-    for item in res.json():
-      code = item['Code']
-      name = item['Name']
-      price_str = str(item.get('ClosingPrice', '0'))
-      price_val = float(price_str) if price_str.replace('.', '', 1).isdigit() else 0
+    if res.status_code == 200:
+      for item in res.json():
+        code = item['Code']
+        name = item['Name']
+        price_str = str(item.get('ClosingPrice', '0'))
+        price_val = (
+            float(price_str)
+            if price_str.replace('.', '', 1).isdigit()
+            else 0
+        )
 
-      if len(code) > 4 or any(
-          kw in name for kw in ['ETF', '指數', '正2', '反1', '富邦', '國泰', '元大S&P', '期元大']
-      ):
-        continue
+        if len(code) > 4 or any(
+            kw in name
+            for kw in ['ETF', '指數', '正2', '反1', '富邦', '國泰', '元大S&P', '期元大']
+        ):
+          continue
 
-      stock_list.append({
-          '代號': code + '.TW',
-          '名稱': name,
-          '收盤價': price_val,
-      })
+        stock_list.append({
+            '代號': code + '.TW',
+            '名稱': name,
+            '收盤價': price_val,
+        })
   except Exception as e:
-    st.error(f'抓取上市清單失敗: {e}')
+    st.warning(f'抓取上市清單警告: {e}')
 
+  # 2. 抓取上櫃股票清單 (TPEX) - 加上防呆與錯誤保護
   try:
     url_otc = 'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes'
     res = requests.get(url_otc, verify=False, timeout=10)
-    for item in res.json():
-      code = item['SecuritiesCompanyCode']
-      name = item['CompanyName']
-      price_str = str(item.get('Close', '0'))
-      price_val = float(price_str) if price_str.replace('.', '', 1).isdigit() else 0
+    if res.status_code == 200:
+      data = res.json()
+      if isinstance(data, list):
+        for item in data:
+          code = item.get('SecuritiesCompanyCode', '')
+          name = item.get('CompanyName', '')
+          price_str = str(item.get('Close', '0'))
+          price_val = (
+              float(price_str)
+              if price_str.replace('.', '', 1).isdigit()
+              else 0
+          )
 
-      if len(code) > 4 or any(
-          kw in name for kw in ['ETF', '指數', '正2', '反1', '富邦', '國泰', '元大S&P', '期元大']
-      ):
-        continue
+          if not code or len(code) > 4 or any(
+              kw in name
+              for kw in [
+                  'ETF',
+                  '指數',
+                  '正2',
+                  '反1',
+                  '富邦',
+                  '國泰',
+                  '元大S&P',
+                  '期元大',
+              ]
+          ):
+            continue
 
-      stock_list.append({
-          '代號': code + '.TWO',
-          '名稱': name,
-          '收盤價': price_val,
-      })
+          stock_list.append({
+              '代號': code + '.TWO',
+              '名稱': name,
+              '收盤價': price_val,
+          })
   except Exception as e:
-    st.error(f'抓取上櫃清單失敗: {e}')
+    # 就算上櫃清單一時連線失敗，也不會讓整個 App 當機，會以現有上市資料繼續運作
+    st.warning(
+        '⚠️ 櫃買中心 (TPEX) 伺服器回應異常，暫以上市股票與快取資料運行。'
+    )
 
   return pd.DataFrame(stock_list)
 
@@ -216,41 +244,6 @@ def calculate_technical_indicators(df):
   df['MACD_OSC'] = (df['MACD_DIF'] - df['MACD_DEM']) * 2
 
   return df
-
-
-def get_multi_period_chips(hist_df):
-  results = {}
-  periods = [3, 5, 10, 20]
-  for p in periods:
-    if len(hist_df) >= p:
-      sub_df = hist_df.tail(p)
-      total_vol = int(sub_df['Volume'].sum() / 1000)
-      avg_vol = int(sub_df['Volume'].mean() / 1000)
-      price_start = sub_df['Close'].iloc[0]
-      price_end = sub_df['Close'].iloc[-1]
-      pct_change = ((price_end - price_start) / price_start) * 100
-
-      if pct_change > 0:
-        status = '🟢 主力偏多吸籌'
-      elif pct_change < 0:
-        status = '🔴 主力調節賣超'
-      else:
-        status = '⚪ 區間震盪觀望'
-
-      results[f'{p}日'] = {
-          '漲跌幅': round(pct_change, 2),
-          '均量(張)': avg_vol,
-          '總量(張)': total_vol,
-          '狀態': status,
-      }
-    else:
-      results[f'{p}日'] = {
-          '漲跌幅': 0.0,
-          '均量(張)': 0,
-          '總量(張)': 0,
-          '狀態': '資料不足',
-      }
-  return results
 
 
 def calculate_support_resistance(hist_df):
@@ -810,7 +803,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
   pool_7_finmind_foreign = []
   pool_89_foreign = []
 
-  # 將掃描範圍擴大為前 100 檔
   target_df = df_market_all.head(100)
   total_items = len(target_df)
 
