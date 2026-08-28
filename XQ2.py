@@ -17,7 +17,7 @@ st.title(
     '📈 台股大盤技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (含每分鐘走勢圖)'
 )
 st.markdown(
-    '本系統支援 200 檔全價格帶掃描，並在個股查詢中全新加入 **「當日每分鐘分時走勢圖與每分鐘成交量」**！'
+    '本系統支援 800 檔全價格帶掃描，並在個股查詢中全新加入 **「當日每分鐘分時走勢圖與每分鐘成交量」**！'
 )
 
 # 忽略警告
@@ -894,7 +894,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
   st.markdown('---')
 
 
-# --- 主畫面：執行前 600 檔 🎯 突破回踩進場機會股智慧掃描 ---
+# --- 主畫面：執行前 800 檔 🎯 突破回踩進場機會股智慧掃描 ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
 
@@ -908,8 +908,8 @@ if run_scan or 'has_scanned_all' in st.session_state:
   pool_7_finmind_foreign = []
   pool_89_foreign = []
 
-  # 將掃描檔數擴大至 600 檔，涵蓋 2、3 開頭熱門電子權值股
-  target_df = df_market_all.head(600)
+  # 將掃描檔數擴大至 800 檔，涵蓋 2、3 開頭熱門電子權值股
+  target_df = df_market_all.head(800)
   total_items = len(target_df)
 
   progress_text = st.empty()
@@ -1041,7 +1041,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
   df_bp = pd.DataFrame(breakout_pullback_pool)
   df_sb = pd.DataFrame(strong_buy_pool)
 
-  st.success('🔥 前 600 檔 🎯 突破回踩進場機會股智慧掃描完成！')
+  st.success('🔥 前 800 檔 🎯 突破回踩進場機會股智慧掃描完成！')
 
   tab1, tab2, tab3 = st.tabs([
       '🎯 突破回踩進場機會股 (核心策略)',
