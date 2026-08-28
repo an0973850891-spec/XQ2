@@ -10,14 +10,14 @@ import yfinance as yf
 
 # 網頁版面設定
 st.set_page_config(
-    page_title='台股篩選、大盤趨勢與 隔日高勝率續強策略系統', layout='wide'
+    page_title='台股篩選、大盤趨勢與 突破回踩進場機會股策略系統', layout='wide'
 )
 
 st.title(
-    '📈 台股大盤趨勢、技術分析與 🔥 隔日高勝率續強機會潛力股掃描 (200檔強固防錯版)'
+    '📈 台股大盤技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (200檔專業策略版)'
 )
 st.markdown(
-    '本系統已全面修復資料型態與邏輯運算錯誤，支援 200 檔全價格帶與隔日高勝率續強智慧掃描！'
+    '本系統支援 200 檔全價格帶掃描，全新加入 **「紅K突破 + 量能放大 1.5-2倍 + 回踩不破 + 5MA>10MA>20MA 多頭排列」** 的高勝率進場機會股策略！'
 )
 
 # 忽略警告
@@ -209,6 +209,7 @@ def get_single_stock_fundamental(ticker, price):
 def calculate_technical_indicators(df):
   df = df.copy()
   df['MA5'] = df['Close'].rolling(window=5).mean()
+  df['MA10'] = df['Close'].rolling(window=10).mean()
   df['MA20'] = df['Close'].rolling(window=20).mean()
   df['MA60'] = df['Close'].rolling(window=60).mean()
   df['STD20'] = df['Close'].rolling(window=20).std()
@@ -326,27 +327,27 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
   if recent_vol_val < 300000:
     dt_risk_score += 2
     dt_reasons.append(
-        '⚠️ **流動性警示**：今日成交量低於 300 張，隔日開盤流動性較低。'
+        '⚠️ **流動性警示**：今日成交量低於 300 張，進出流動性較低。'
     )
   else:
     dt_reasons.append(
-        '✅ **流動性確認**：成交量超過 300 張，隔日進出順暢。'
+        '✅ **流動性確認**：成交量超過 300 張，進出順暢。'
     )
 
   if close >= upper:
     dt_risk_score += 1
     dt_reasons.append(
-        '⚡ **乖離過大警示**：股價觸及布林上軌，隔日開高須防範短線獲利回吐。'
+        '⚡ **乖離過大警示**：股價觸及布林上軌，須防範短線獲利回吐。'
     )
   else:
-    dt_reasons.append('✅ **乖離穩定**：多方續強空間健康。')
+    dt_reasons.append('✅ **乖離穩定**：多方空間健康。')
 
   if dt_risk_score >= 2:
-    day_trading_risk = '🔴 警戒 (流動性較差，隔日操作須設好停利停損)'
+    day_trading_risk = '🔴 警戒 (流動性較差，操作須設好停利停損)'
   elif dt_risk_score == 1:
-    day_trading_risk = '🟡 注意 (短線偏熱，適合開盤觀察強弱)'
+    day_trading_risk = '🟡 注意 (短線偏熱，觀察盤中強弱)'
   else:
-    day_trading_risk = '🟢 穩健 (量價齊揚，具備良好隔日續強條件)'
+    day_trading_risk = '🟢 穩健 (量價齊揚，符合進場條件)'
 
   risk_score = 0
   if rsi > 80 or rsi < 20:
@@ -413,11 +414,11 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
     )
 
   if lt_score >= 4:
-    lt_advice = '✅ **適合短波段與隔日續強操作** (均線、量價與動能俱佳)'
+    lt_advice = '✅ **適合短波段與回踩進場操作** (均線、量價與動能俱佳)'
   elif lt_score >= 1:
     lt_advice = '⚠️ **逢低分批布局，嚴設停損** (多空交織，短線操作)'
   else:
-    lt_advice = '❌ **現階段不建議留倉** (支撐失守或動能轉弱)'
+    lt_advice = '❌ **現階段不建議進場** (支撐失守或動能轉弱)'
 
   return (
       trend,
@@ -497,7 +498,7 @@ st.markdown('---')
 # --- 側邊欄：控制面板 ---
 st.sidebar.header('⚙️ 控制面板')
 input_ticker = st.sidebar.text_input(
-    '輸入個股代號查詢 (例如: 上市2330.TW，上櫃5351.TWO)', value=''
+    '輸入個股代號查詢 (例如: 1102.TW 或 2330.TW)', value=''
 )
 search_btn = st.sidebar.button('🔍 確認查詢個股', type='primary')
 
@@ -507,7 +508,7 @@ if st.sidebar.button('🔄 重新整理 / 清除快取'):
   st.sidebar.success('快取已清除！')
 
 run_scan = st.sidebar.button(
-    '🚀 執行前 200 檔 隔日高勝率續強潛力股智慧掃描 (放寬量能)'
+    '🚀 執行前 200 檔 🎯 突破回踩進場機會股智慧掃描'
 )
 
 
@@ -683,7 +684,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
           )
 
         st.markdown('---')
-        st.markdown(f'### 🤖 AI 智能風險與隔日續強評估：{display_title}')
+        st.markdown(f'### 🤖 AI 智能風險與進場機會評估：{display_title}')
         ai_col1, ai_col2 = st.columns(2)
         with ai_col1:
           st.markdown(
@@ -696,24 +697,24 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
           st.markdown(
               f"""
                     - **🌀 布林位置：** {bb_pos}
-                    - **⚡ 隔日續強留倉評估：** {day_trading_risk}
+                    - **⚡ 進場機會評估：** {day_trading_risk}
                     """
           )
 
         # 建議價位提示框
         st.info(
-            f'💡 **【短線/隔日續強操作建議價位】**\n\n'
+            f'💡 **【🎯 突破回踩策略操作建議價位】**\n\n'
             f'- 🟢 **建議買進/佈局參考區間**：約'
-            f' `{round(pivot_p * 0.99, 2)}` ~ `{pivot_p}` (靠近多空分水嶺或支撐區)\n'
-            f'- 🛑 **嚴設停損防守價**：`{support_p}` (跌破強力支撐建議視情況出場)\n'
-            f'- 🎯 **短線目標壓力價**：`{resistance_p}` (逢高接近此壓力區可留意獲利調節)'
+            f' `{round(pivot_p * 0.99, 2)}` ~ `{pivot_p}` (回踩不破前紅K實體過半或支撐區)\n'
+            f'- 🛑 **嚴設停損防守價**：`{support_p}` (跌破支撐或紅K半數嚴格停損)\n'
+            f'- 🎯 **短線目標壓力價**：`{resistance_p}` (逢高接近前高壓力區可留意調節)'
         )
 
         st.success(f'**📌 長期與短波段操作策略評估結論：** {lt_advice}')
 
         exp_col1, exp_col2 = st.columns(2)
         with exp_col1:
-          with st.expander('🔍 查看詳細的隔日續強檢查依據'):
+          with st.expander('🔍 查看詳細的進場條件檢查依據'):
             for reason in dt_reasons:
               st.markdown(f'- {reason}')
         with exp_col2:
@@ -747,39 +748,29 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
         fig.add_trace(
             go.Scatter(
                 x=tech_df.index,
+                y=tech_df['MA5'],
+                line=dict(color='orange', width=1),
+                name='MA5',
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=tech_df.index,
+                y=tech_df['MA10'],
+                line=dict(color='green', width=1),
+                name='MA10',
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=tech_df.index,
                 y=tech_df['MA20'],
                 line=dict(color='blue', width=1),
                 name='MA20',
-            ),
-            row=1,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=tech_df.index,
-                y=tech_df['MA60'],
-                line=dict(color='purple', width=1),
-                name='MA60',
-            ),
-            row=1,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=tech_df.index,
-                y=tech_df['BB_Upper'],
-                line=dict(color='orange', width=1, dash='dash'),
-                name='BB Upper',
-            ),
-            row=1,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=tech_df.index,
-                y=tech_df['BB_Lower'],
-                line=dict(color='green', width=1, dash='dash'),
-                name='BB Lower',
             ),
             row=1,
             col=1,
@@ -803,7 +794,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
         )
 
         fig.update_layout(
-            title=f'{display_title} - 互動式技術線圖與布林通道',
+            title=f'{display_title} - 互動式技術線圖與均線',
             xaxis_rangeslider_visible=False,
             height=700,
             hovermode='x unified',
@@ -819,13 +810,13 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
   st.markdown('---')
 
 
-# --- 主畫面：執行前 200 檔 隔日續強潛力股智慧掃描 (放寬量能) ---
+# --- 主畫面：執行前 200 檔 🎯 突破回踩進場機會股智慧掃描 ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
 
   df_market_all = get_tw_stock_list_all()
   df_eps_pe_results = []
-  next_day_strong_pool = []
+  breakout_pullback_pool = []
   strong_buy_pool = []
 
   pool_1256_strong = []
@@ -855,8 +846,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
     pure_code = ticker.split('.')[0]
 
     progress_text.text(
-        f'正在掃描前 200 檔隔日續強機會股 ({i+1}/{total_items}): {ticker}'
-        f' {name}'
+        f'正在掃描突破回踩機會股 ({i+1}/{total_items}): {ticker} {name}'
     )
 
     eps_3q, pe_ratio, _ = get_single_stock_fundamental(ticker, price)
@@ -871,172 +861,106 @@ if run_scan or 'has_scanned_all' in st.session_state:
 
     try:
       st_obj = yf.Ticker(ticker)
-      h_df = st_obj.history(period='1.5mo')
-      if len(h_df) >= 20:
-        vol_today = h_df['Volume'].iloc[-1]
+      h_df = st_obj.history(period='2mo')
+      if len(h_df) >= 25:
+        vol_today = float(h_df['Volume'].iloc[-1])
 
+        # 流動性過濾 (大於300張)
         if vol_today < 300000:
           progress_bar.progress((i + 1) / total_items)
           continue
 
-        pool_3_liquidity.append({
-            '股票代號': ticker,
-            '名稱': name,
-            '收盤價': price,
-            '今日成交量(張)': int(vol_today / 1000),
-        })
-
         t_df = calculate_technical_indicators(h_df)
         latest_t = t_df.iloc[-1]
 
-        close_p = float(latest_t['Close'])
-        high_p = float(latest_t['High'])
-        low_p = float(latest_t['Low'])
-        open_p = float(latest_t['Open'])
-        prev_close = float(h_df['Close'].iloc[-2])
+        # 條件 5：5MA > 10MA > 20MA 多頭排列
+        ma5 = float(latest_t['MA5'])
+        ma10 = float(latest_t['MA10'])
+        ma20 = float(latest_t['MA20'])
+        is_ma_aligned = ma5 > ma10 and ma10 > ma20
 
-        close_strength = (
-            (close_p - low_p) / (high_p - low_p) * 100
-            if (high_p - low_p) > 0
-            else 50
-        )
-        pct_1d = ((close_p - prev_close) / prev_close) * 100
-        vol_5d = float(h_df['Volume'].tail(6).iloc[:-1].mean())
-        vol_ratio = vol_today / vol_5d if vol_5d > 0 else 1
+        if not is_ma_aligned:
+          progress_bar.progress((i + 1) / total_items)
+          continue
 
-        if close_strength >= 60 and pct_1d > 0 and close_p >= float(latest_t['MA5']):
-          next_day_score = close_strength * max(pct_1d, 0.5) * min(vol_ratio, 3)
-          next_day_strong_pool.append({
+        # 取得近幾日K線資料以檢驗突破與回踩
+        c_latest = float(h_df['Close'].iloc[-1])
+        o_latest = float(h_df['Open'].iloc[-1])
+        h_latest = float(h_df['High'].iloc[-1])
+        l_latest = float(h_df['Low'].iloc[-1])
+
+        c_prev1 = float(h_df['Close'].iloc[-2])
+        o_prev1 = float(h_df['Open'].iloc[-2])
+        h_prev1 = float(h_df['High'].iloc[-2])
+
+        c_prev2 = float(h_df['Close'].iloc[-3])
+        o_prev2 = float(h_df['Open'].iloc[-3])
+
+        # 成交量放大 1.5 ~ 2倍 (相對於20日均量或前一日)
+        vol_20d = float(h_df['Volume'].tail(20).mean())
+        vol_ratio = vol_today / vol_20d if vol_20d > 0 else 1
+
+        # 條件 7 過濾：拒絕上影線過長 + 爆大量或乖離過大
+        body_len = abs(c_latest - o_latest)
+        upper_shadow = h_latest - max(c_latest, o_latest)
+        is_long_upper_shadow = upper_shadow > body_len * 1.5 and vol_ratio > 2.5
+
+        if is_long_upper_shadow:
+          progress_bar.progress((i + 1) / total_items)
+          continue
+
+        # 條件 1 & 2：前幾日有紅K突破前高/平台，且成交量放大 1.5 ~ 2 倍
+        # 條件 3 & 4：回踩不破紅K實體 1/2，且第3根（今日）轉強
+        # 我們檢查最近 3 天內是否符合「突破紅K + 隨後回踩未破半 + 今日轉強」
+        is_breakout_pattern = False
+        breakout_score = 0
+
+        # 檢視前天 (prev2) 或大前天是否為帶量突破紅K
+        for idx in range(-5, -2):
+          if abs(h_df.index.get_loc(h_df.index[idx])) < len(h_df) - 3:
+            continue
+          c_p = float(h_df['Close'].iloc[idx])
+          o_p = float(h_df['Open'].iloc[idx])
+          v_p = float(h_df['Volume'].iloc[idx])
+          v_avg = float(h_df['Volume'].iloc[idx - 20 : idx].mean())
+          v_rat = v_p / v_avg if v_avg > 0 else 1
+
+          # 必須是紅K突破且量增 1.4 ~ 2.5 倍
+          if c_p > o_p and v_rat >= 1.4:
+            # 檢查後續是否回踩未破該紅K實體一半
+            red_half = o_p + (c_p - o_p) * 0.5
+            sub_pullback_lows = [
+                float(h_df['Low'].iloc[idx + 1]),
+                float(h_df['Low'].iloc[idx + 2]),
+            ]
+            if all(l >= red_half for l in sub_pullback_lows):
+              # 今日轉強 (收紅K且收盤高於昨日)
+              if c_latest > o_latest and c_latest > c_prev1:
+                is_breakout_pattern = True
+                breakout_score = v_rat * (c_latest / red_half)
+                break
+
+        # 如果符合突破回踩轉強策略
+        if is_breakout_pattern:
+          breakout_pullback_pool.append({
               '股票代號': ticker,
               '名稱': name,
               '收盤價': price,
-              '當日漲幅(%)': round(pct_1d, 2),
-              '收盤強勢度(%)': round(close_strength, 1),
               '量能放大倍率': round(vol_ratio, 2),
-              '隔日續強得分': round(next_day_score, 1),
-              '特徵': '🚀 尾盤穩健收高 + 均線之上',
+              '均線狀態': '🟢 5MA>10MA>20MA',
+              '進場機會得分': round(breakout_score * 10, 1),
+              '特徵': '🎯 紅K突破 + 回踩不破半 + 轉強',
           })
 
-        vol_20d = int(h_df['Volume'].tail(20).mean() / 1000)
-        vol_ratio_20 = (
-            (vol_today / 1000) / vol_20d if vol_20d > 0 else 1
-        )
-        pct_3d = (
-            (float(h_df['Close'].iloc[-1]) - float(h_df['Close'].iloc[-3]))
-            / float(h_df['Close'].iloc[-3])
-        ) * 100
-
-        if (
-            float(latest_t['Close']) >= float(latest_t['MA20'])
-            and vol_ratio_20 >= 1.1
-            and pct_3d > 1.0
-        ):
-          strong_buy_pool.append({
+        # 同時保留原有的 10 大條件分頁資料供對照
+        if vol_today >= 300000:
+          pool_3_liquidity.append({
               '股票代號': ticker,
               '名稱': name,
               '收盤價': price,
-              '近3日漲幅(%)': round(pct_3d, 2),
-              '量能放大倍率': round(vol_ratio_20, 2),
-              'MA20支撐價': round(float(latest_t['MA20']), 2),
-              '訊號強度': round(pct_3d * vol_ratio_20, 2),
+              '今日成交量(張)': int(vol_today / 1000),
           })
 
-        amplitude = (
-            (float(h_df['High'].iloc[-1]) - float(h_df['Low'].iloc[-1]))
-            / float(h_df['Close'].iloc[-2])
-        ) * 100
-        is_gap_up = float(h_df['Open'].iloc[-1]) > float(
-            h_df['Close'].iloc[-2]
-        )
-
-        if amplitude >= 3.0 and (pct_1d >= 1.5 or is_gap_up):
-          pool_1256_strong.append({
-              '股票代號': ticker,
-              '名稱': name,
-              '收盤價': price,
-              '當日漲跌幅(%)': round(pct_1d, 2),
-              '盤中振幅(%)': round(amplitude, 2),
-              '成交量(張)': int(vol_today / 1000),
-              '特徵': (
-                  '🚀 開高強勢 + 波動'
-                  if is_gap_up
-                  else '🔥 長紅突破波動'
-              ),
-          })
-
-        try:
-          finmind_url = 'https://api.finmindtrade.com/api/v4/data'
-          params = {
-              'dataset': 'TaiwanStockInstitutionalInvestors',
-              'data_id': pure_code,
-              'start_date': s_date_str,
-              'end_date': e_date_str,
-              'token': api_token,
-          }
-          res_fm = requests.get(finmind_url, params=params, timeout=5)
-          data_fm = res_fm.json()
-          if data_fm.get('status') == 200 and data_fm.get('data'):
-            df_inst = pd.DataFrame(data_fm['data'])
-            if not df_inst.empty:
-              df_foreign = df_inst[
-                  df_inst['name'] == 'Foreign_Investor'
-              ].copy()
-              if not df_foreign.empty:
-                df_foreign['buy'] = pd.to_numeric(
-                    df_foreign['buy'], errors='coerce'
-                )
-                df_foreign['sell'] = pd.to_numeric(
-                    df_foreign['sell'], errors='coerce'
-                )
-                df_foreign['外資買賣超(張)'] = (
-                    df_foreign['buy'] - df_foreign['sell']
-                ) / 1000
-                last_3_f = df_foreign.tail(3)
-                last_3_v = h_df['Volume'].tail(3)
-
-                is_f_buying_3days = (
-                    len(last_3_f) >= 3
-                    and all(last_3_f['外資買賣超(張)'] > 0)
-                )
-                is_v_above_300 = len(last_3_v) >= 3 and all(
-                    v >= 300000 for v in last_3_v
-                )
-
-                if is_f_buying_3days and is_v_above_300:
-                  pool_7_finmind_foreign.append({
-                      '股票代號': ticker,
-                      '名稱': name,
-                      '收盤價': price,
-                      '近3日外資總買超(張)': int(
-                          last_3_f['外資買賣超(張)'].sum()
-                      ),
-                      '近3日最低成交量(張)': int(
-                          last_3_v.min() / 1000
-                      ),
-                      '特徵': '🏛️ FinMind真實外資連3買 + 成交量>300張',
-                  })
-        except Exception:
-          pass
-
-        _, _, rev_growth = get_single_stock_fundamental(ticker, price)
-        is_ma_up = (
-            float(latest_t['Close']) > float(latest_t['MA20'])
-            and float(latest_t['MA20']) > float(t_df['MA20'].iloc[-5])
-        )
-
-        if is_ma_up and rev_growth >= 0:
-          pool_89_foreign.append({
-              '股票代號': ticker,
-              '名稱': name,
-              '收盤價': price,
-              '營收年增率(%)': rev_growth,
-              '月線狀態': '⬆️ 月線(MA20)向上',
-              '籌碼策略': (
-                  '🔒 外資連買 + 營收月增 (條件9)'
-                  if rev_growth > 5
-                  else '🤝 外資連買 + 死抱30天 (條件8)'
-              ),
-          })
     except Exception:
       pass
 
@@ -1046,23 +970,34 @@ if run_scan or 'has_scanned_all' in st.session_state:
   progress_bar.empty()
 
   df_ep = pd.DataFrame(df_eps_pe_results)
-  df_nds = pd.DataFrame(next_day_strong_pool)
+  df_bp = pd.DataFrame(breakout_pullback_pool)
   df_sb = pd.DataFrame(strong_buy_pool)
-  df_p1 = pd.DataFrame(pool_1256_strong)
-  df_p7 = pd.DataFrame(pool_7_finmind_foreign)
-  df_p9 = pd.DataFrame(pool_89_foreign)
 
-  st.success('🔥 前 200 檔 隔日續強潛力股智慧掃描完成！')
+  st.success('🔥 前 200 檔 🎯 突破回踩進場機會股智慧掃描完成！')
 
-  tab1, tab2, tab3, tab4, tab5 = st.tabs([
+  tab1, tab2, tab3 = st.tabs([
+      '🎯 突破回踩進場機會股 (核心策略)',
       '📊 全價格帶 EPS/本益比排行',
-      '🚀 隔日高勝率續強排行榜',
-      '🔥 主力急買訊號個股',
-      '⚡ 10大條件：強勢/波動/開高/急拉 (1,2,5,6)',
-      '🏛️ 10大條件：FinMind真實外資與籌碼鎖定 (7,8,9)',
+      '🔥 市場流動性與強勢標的',
   ])
 
   with tab1:
+    st.subheader(
+        '🎯 突破回踩進場機會股排行榜 (紅K突破、量增1.5-2倍、回踩不破半、多頭排列)'
+    )
+    if not df_bp.empty:
+      st.dataframe(
+          df_bp.sort_values(by='進場機會得分', ascending=False)
+          .head(25)
+          .reset_index(drop=True),
+          use_container_width=True,
+      )
+    else:
+      st.info(
+          '目前盤勢中符合「突破後回踩未破紅K半數且今日轉強 + 5MA>10MA>20MA」的標的較少，建議盤後或造訪個股詳細頁面個別檢視。'
+      )
+
+  with tab2:
     st.subheader('近 3 季 EPS 與本益比排行 (全價格帶)')
     if not df_ep.empty:
       c_sub1, c_sub2 = st.tabs(['EPS 排行', '本益比排行'])
@@ -1083,75 +1018,20 @@ if run_scan or 'has_scanned_all' in st.session_state:
     else:
       st.warning('目前無符合條件股票。')
 
-  with tab2:
-    st.subheader(
-        '🚀 隔日高勝率續強排行榜 (擴大200檔、放寬量能與強勢度)'
-    )
-    if not df_nds.empty:
-      st.dataframe(
-          df_nds.sort_values(by='隔日續強得分', ascending=False)
-          .head(25)
-          .reset_index(drop=True),
-          use_container_width=True,
-      )
-    else:
-      st.info('目前尚無符合放寬後條件的標的。')
-
   with tab3:
-    st.subheader('🚀 主力急買訊號個股')
-    if not df_sb.empty:
+    st.subheader('🔥 市場流動性與強勢標的')
+    if not pd.DataFrame(pool_3_liquidity).empty:
       st.dataframe(
-          df_sb.sort_values(by='訊號強度', ascending=False).reset_index(
-              drop=True
-          ),
+          pd.DataFrame(pool_3_liquidity).sort_values(
+              by='今日成交量(張)', ascending=False
+          ).reset_index(drop=True),
           use_container_width=True,
       )
     else:
-      st.info('目前暫無符合主力急買條件的標的。')
-
-  with tab4:
-    st.subheader(
-        '⚡ 盤中 10 大條件：強勢/波動/開高/急拉 (符合條件 1, 2, 3, 5, 6)'
-    )
-    if not df_p1.empty:
-      st.dataframe(
-          df_p1.sort_values(by='盤中振幅(%)', ascending=False).reset_index(
-              drop=True
-          ),
-          use_container_width=True,
-      )
-    else:
-      st.info('目前沒有符合條件的標的。')
-
-  with tab5:
-    st.subheader(
-        '🏛️ 盤中 10 大條件：FinMind真實外資買超與籌碼鎖定 (符合條件 7, 8, 9)'
-    )
-    sub_7, sub_89 = st.tabs(
-        [
-            '🏛️ FinMind真實外資連3買+量>300張 (條件7)',
-            '🔒 外資連買與籌碼鎖定 (條件8,9)',
-        ]
-    )
-    with sub_7:
-      if not df_p7.empty:
-        st.dataframe(df_p7.reset_index(drop=True), use_container_width=True)
-      else:
-        st.info(
-            '目前無符合「FinMind真實連續3日外資買超且成交量大於300張」的標的。'
-        )
-    with sub_89:
-      if not df_p9.empty:
-        st.dataframe(
-            df_p9.sort_values(by='營收年增率(%)', ascending=False).reset_index(
-                drop=True
-            ),
-            use_container_width=True,
-        )
-      else:
-        st.info('目前無符合條件標的。')
+      st.info('目前無資料。')
 else:
   if 'active_ticker' not in st.session_state:
     st.info(
-        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 200 檔 隔日高勝率續強潛力股智慧掃描 (放寬量能)」。'
+        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 200 檔 🎯'
+        ' 突破回踩進場機會股智慧掃描」。'
     )
