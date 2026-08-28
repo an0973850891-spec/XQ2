@@ -14,10 +14,10 @@ st.set_page_config(
 )
 
 st.title(
-    '📈 台股大盤技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (含布林通道完整版)'
+    '📈 台股大盤技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (含每分鐘走勢圖)'
 )
 st.markdown(
-    '本系統支援全價格帶掃描，並已將技術線圖恢復為 **「布林通道 + MA5/10/20多頭排列」** 完整顯示！'
+    '本系統支援 200 檔全價格帶掃描，並在個股查詢中全新加入 **「當日每分鐘分時走勢圖與每分鐘成交量」**！'
 )
 
 # 忽略警告
@@ -498,7 +498,7 @@ st.markdown('---')
 # --- 側邊欄：控制面板 ---
 st.sidebar.header('⚙️ 控制面板')
 input_ticker = st.sidebar.text_input(
-    '輸入個股代號查詢 (例如: 上市2230.TW 或 上櫃5351.TWO)', value=''
+    '輸入個股代號查詢 (例如: 1102.TW 或 2330.TW)', value=''
 )
 search_btn = st.sidebar.button('🔍 確認查詢個股', type='primary')
 
@@ -508,7 +508,7 @@ if st.sidebar.button('🔄 重新整理 / 清除快取'):
   st.sidebar.success('快取已清除！')
 
 run_scan = st.sidebar.button(
-    '🚀 執行前 800 檔 🎯 突破回踩進場機會股智慧掃描'
+    '🚀 執行前 600 檔 🎯 突破回踩進場機會股智慧掃描'
 )
 
 
@@ -701,7 +701,6 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
                     """
           )
 
-        # 建議價位提示框
         st.info(
             f'💡 **【🎯 突破回踩策略操作建議價位】**\n\n'
             f'- 🟢 **建議買進/佈局參考區間**：約'
@@ -724,6 +723,70 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
 
         st.markdown('---')
 
+        # --- 新增區塊：當日每分鐘分時走勢與成交量 ---
+        st.markdown(f'### ⏱️ 當日每分鐘分時走勢與成交量：{display_title}')
+        try:
+          min_df = stock_obj.history(period='1d', interval='1m')
+          if not min_df.empty:
+            fig_min = make_subplots(
+                rows=2,
+                cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.03,
+                row_heights=[0.75, 0.25],
+            )
+
+            # 分時價格曲線
+            fig_min.add_trace(
+                go.Scatter(
+                    x=min_df.index,
+                    y=min_df['Close'],
+                    mode='lines',
+                    name='每分鐘收盤價',
+                    line=dict(color='#1f77b4', width=1.5),
+                ),
+                row=1,
+                col=1,
+            )
+
+            # 每分鐘成交量
+            min_colors = [
+                'red'
+                if row['Close'] >= row['Open']
+                else 'green'
+                for idx, row in min_df.iterrows()
+            ]
+            min_vol_lots = min_df['Volume'] / 1000
+            fig_min.add_trace(
+                go.Bar(
+                    x=min_df.index,
+                    y=min_vol_lots,
+                    marker_color=min_colors,
+                    name='每分鐘成交量(張)',
+                    hovertemplate='成交量(張): %{y:,.1f}<extra></extra>',
+                ),
+                row=2,
+                col=1,
+            )
+
+            fig_min.update_layout(
+                title=f'{display_title} - 當日每分鐘分時走勢圖',
+                xaxis_rangeslider_visible=False,
+                height=450,
+                hovermode='x unified',
+            )
+            st.plotly_chart(fig_min, use_container_width=True)
+          else:
+            st.info(
+                '目前非交易時段或無當日每分鐘分時資料（Yahoo Finance'
+                ' 1分鐘資料僅提供近幾個交易日內）。'
+            )
+        except Exception as e:
+          st.warning(f'無法載入每分鐘分時走勢圖: {e}')
+
+        st.markdown('---')
+
+        # --- 原有的日K線與布林通道圖 ---
         fig = make_subplots(
             rows=2,
             cols=1,
@@ -745,7 +808,6 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             col=1,
         )
 
-        # 均線群組 (MA5, MA10, MA20)
         fig.add_trace(
             go.Scatter(
                 x=tech_df.index,
@@ -777,7 +839,6 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             col=1,
         )
 
-        # 恢復布林通道上下軌
         fig.add_trace(
             go.Scatter(
                 x=tech_df.index,
@@ -833,7 +894,7 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
   st.markdown('---')
 
 
-# --- 主畫面：執行前 800 檔 🎯 突破回踩進場機會股智慧掃描 ---
+# --- 主畫面：執行前 600 檔 🎯 突破回踩進場機會股智慧掃描 ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
 
@@ -847,7 +908,8 @@ if run_scan or 'has_scanned_all' in st.session_state:
   pool_7_finmind_foreign = []
   pool_89_foreign = []
 
-  target_df = df_market_all.head(800)
+  # 將掃描檔數擴大至 600 檔，涵蓋 2、3 開頭熱門電子權值股
+  target_df = df_market_all.head(600)
   total_items = len(target_df)
 
   progress_text = st.empty()
@@ -979,7 +1041,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
   df_bp = pd.DataFrame(breakout_pullback_pool)
   df_sb = pd.DataFrame(strong_buy_pool)
 
-  st.success('🔥 前 800 檔 🎯 突破回踩進場機會股智慧掃描完成！')
+  st.success('🔥 前 600 檔 🎯 突破回踩進場機會股智慧掃描完成！')
 
   tab1, tab2, tab3 = st.tabs([
       '🎯 突破回踩進場機會股 (核心策略)',
@@ -1022,7 +1084,7 @@ if run_scan or 'has_scanned_all' in st.session_state:
             use_container_width=True,
         )
     else:
-      st.warning('目前無符合條件股票。')
+      st.warning('print 目前無符合條件股票。')
 
   with tab3:
     st.subheader('🔥 市場流動性與強勢標的')
@@ -1038,6 +1100,6 @@ if run_scan or 'has_scanned_all' in st.session_state:
 else:
   if 'active_ticker' not in st.session_state:
     st.info(
-        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 200 檔 🎯'
+        '👈 請在左側輸入代號並點擊查詢，或是點擊「🚀 執行前 600 檔 🎯'
         ' 突破回踩進場機會股智慧掃描」。'
     )
