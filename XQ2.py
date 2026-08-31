@@ -13,11 +13,9 @@ st.set_page_config(
     page_title='台股篩選、大盤趨勢與 突破回踩進場機會股策略系統', layout='wide'
 )
 
-st.title(
-    '📈 台股技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (含布林通道完整版)'
-)
+st.title('📈 台股技術分析與 🔥 🎯 突破回踩進場機會股掃描 (含AI風險評估完整版)')
 st.markdown(
-    '本系統支援 200 檔全價格帶掃描，並已將個股詳細圖表恢復為 **「布林通道 + MA5/10/20均線 + 分時走勢」** 完整顯示！'
+    '本系統支援 200 檔全價格帶掃描，並已將 **AI 智能風險評估、建議價位、布林通道與均線** 全部完整恢復！'
 )
 
 # 忽略警告
@@ -208,8 +206,6 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
   close = float(latest['Close'])
   ma20 = float(latest['MA20'])
   ma10 = float(latest['MA10'])
-  k = float(latest['K'])
-  d = float(latest['D'])
   rsi = float(latest['RSI'])
   macd_osc = float(latest['MACD_OSC'])
   upper = float(latest['BB_Upper'])
@@ -237,34 +233,50 @@ def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
 
   if recent_vol_val < 300000:
     dt_risk_score += 2
-    dt_reasons.append('⚠️ **流動性警示**：成交量低於 300 張。')
+    dt_reasons.append(
+        '⚠️ **流動性警示**：成交量低於 300 張，進出流動性較低。'
+    )
   else:
-    dt_reasons.append('✅ **流動性確認**：成交量超過 300 張。')
+    dt_reasons.append(
+        '✅ **流動性確認**：成交量超過 300 張，進出順暢。'
+    )
 
   if close >= upper:
     dt_risk_score += 1
-    dt_reasons.append('⚡ **乖離過大警示**：觸及布林上軌，防範回吐。')
+    dt_reasons.append(
+        '⚡ **乖離過大警示**：股價觸及布林上軌，須防範短線獲利回吐。'
+    )
   else:
     dt_reasons.append('✅ **乖離穩定**：多方空間健康。')
 
-  day_trading_risk = (
-      '🔴 警戒 (流動性較差)' if dt_risk_score >= 2 else '🟢 穩健 (符合進場條件)'
-  )
-  risk_level = (
-      '🔴 高風險 (指標過熱)'
-      if rsi > 80 or close >= upper
-      else '🟢 低風險 (指標健康)'
-  )
+  if dt_risk_score >= 2:
+    day_trading_risk = '🔴 警戒 (流動性較差，操作須設好停利停損)'
+  elif dt_risk_score == 1:
+    day_trading_risk = '🟡 注意 (短線偏熱，觀察盤中強弱)'
+  else:
+    day_trading_risk = '🟢 穩健 (量價齊揚，符合進場條件)'
 
-  return (
-      trend,
-      risk_level,
-      bb_pos,
-      day_trading_risk,
-      dt_reasons,
-      '✅ 適合短波段與回踩進場操作',
-      ['✅ 均線結構正常', '✅ 量價與動能穩定'],
+  risk_score = 0
+  if rsi > 80 or rsi < 20:
+    risk_score += 2
+  elif rsi > 70 or rsi < 30:
+    risk_score += 1
+  if close >= upper or close <= lower:
+    risk_score += 1
+
+  if risk_score >= 3:
+    risk_level = '🔴 高風險 (技術指標過熱)'
+  elif risk_score == 2:
+    risk_level = '🟡 中風險 (多空拉鋸)'
+  else:
+    risk_level = '🟢 低風險 (指標健康)'
+
+  lt_advice = (
+      '✅ 適合短波段與回踩進場操作 (均線、量價與動能俱佳)'
+      if risk_score < 2
+      else '⚠️ 逢低分批布局，嚴設停損'
   )
+  return trend, risk_level, bb_pos, day_trading_risk, dt_reasons, lt_advice
 
 
 # --- 側邊欄控制面板 ---
@@ -293,8 +305,9 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
         tech_df = calculate_technical_indicators(hist_df)
         latest = tech_df.iloc[-1]
         prev = tech_df.iloc[-2]
-        trend, risk_level, bb_pos, day_trading_risk, dt_reasons, lt_advice, lt_reasons = ai_risk_assessment(
-            latest, prev, hist_df, 5.0
+
+        trend, risk_level, bb_pos, day_trading_risk, dt_reasons, lt_advice = (
+            ai_risk_assessment(latest, prev, hist_df, 5.0)
         )
 
         st.subheader(f'📌 查詢結果：{target_ticker.upper()}')
@@ -304,15 +317,39 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             delta=f'{latest_price - hist_df["Close"].iloc[-2]:+.2f}',
         )
 
-        st.info(
-            f'💡 **操作參考價位與 AI 評估**\n\n'
-            f'- 🟢 建議買進區間：`{pivot_p * 0.99:.2f}` ~ `{pivot_p:.2f}`\n'
-            f'- 🛑 停損防守價：`{support_p}`\n'
-            f'- 🎯 目標壓力價：`{resistance_p}`\n'
-            f'- 🌀 布林通道位置：{bb_pos}'
-        )
+        # --- 恢復 AI 智能風險與操作評估區塊 ---
+        st.markdown(f'### 🤖 AI 智能風險與進場機會評估：{target_ticker.upper()}')
+        ai_col1, ai_col2 = st.columns(2)
+        with ai_col1:
+          st.markdown(
+              f"""
+                    - **技術趨勢：** {trend}
+                    - **⚠️ 風險等級：** {risk_level}
+                    """
+          )
+        with ai_col2:
+          st.markdown(
+              f"""
+                    - **🌀 布林位置：** {bb_pos}
+                    - **⚡ 進場機會評估：** {day_trading_risk}
+                    """
+          )
 
-        # --- 新增區塊：當日每分鐘分時走勢與成交量 ---
+        st.info(
+            f'💡 **【🎯 突破回踩策略操作建議價位】**\n\n'
+            f'- 🟢 **建議買進/佈局參考區間**：約'
+            f' `{round(pivot_p * 0.99, 2)}` ~ `{pivot_p}` (回踩支撐區)\n'
+            f'- 🛑 **嚴設停損防守價**：`{support_p}` (跌破支撐嚴格停損)\n'
+            f'- 🎯 **短線目標壓力價**：`{resistance_p}` (逢高接近前高壓力區留意調節)'
+        )
+        st.success(f'**📌 長期與短波段操作策略評估結論：** {lt_advice}')
+
+        with st.expander('🔍 查看詳細的進場條件與風險檢查依據'):
+          for reason in dt_reasons:
+            st.markdown(f'- {reason}')
+
+        # --- 當日每分鐘分時走勢與成交量 ---
+        st.markdown('---')
         st.markdown(f'### ⏱️ 當日每分鐘分時走勢與成交量')
         try:
           min_df = stock_obj.history(period='1d', interval='1m')
@@ -356,14 +393,12 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             )
             st.plotly_chart(fig_min, use_container_width=True)
           else:
-            st.info(
-                '目前非交易時段或無當日每分鐘分時資料（Yahoo Finance'
-                ' 1分鐘資料僅提供近幾個交易日內）。'
-            )
+            st.info('目前非交易時段或無當日每分鐘分時資料。')
         except Exception:
           pass
 
         # --- 日K線圖（含 MA 均線與布林通道上下軌）---
+        st.markdown('---')
         st.markdown(f'### 📊 日K線圖、均線與布林通道')
         fig = make_subplots(
             rows=2,
@@ -385,7 +420,6 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             col=1,
         )
 
-        # 均線群組
         fig.add_trace(
             go.Scatter(
                 x=tech_df.index,
@@ -417,7 +451,6 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             col=1,
         )
 
-        # 布林通道上下軌
         fig.add_trace(
             go.Scatter(
                 x=tech_df.index,
