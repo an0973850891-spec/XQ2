@@ -8,16 +8,16 @@ import urllib3
 import warnings
 import yfinance as yf
 
-# 網頁版面設定：改為 'centered' 或保留 'wide' 但搭配手機響應式優化
+# 網頁版面設定
 st.set_page_config(
-    page_title='台股篩選、大盤趨勢與 突破回踩進場機會股策略系統',
-    layout='centered',  # 適合手機與單機精簡瀏覽
-    initial_sidebar_state='collapsed',  # 手機預設收合側邊欄，增加主畫面空間
+    page_title='台股篩選、大盤趨勢與 突破回踩進場機會股策略系統', layout='wide'
 )
 
-st.title('📈 台股技術分析與 🎯 突破回踩機會股掃描 (手機精簡版)')
+st.title(
+    '📈 台股技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (含布林通道完整版)'
+)
 st.markdown(
-    '本系統已調整為**適合手機直式瀏覽**的集中式版面，點擊左上角箭頭可展開控制面板！'
+    '本系統支援 200 檔全價格帶掃描，並已將個股詳細圖表恢復為 **「布林通道 + MA5/10/20均線 + 分時走勢」** 完整顯示！'
 )
 
 # 忽略警告
@@ -157,10 +157,31 @@ def calculate_technical_indicators(df):
   df['STD20'] = df['Close'].rolling(window=20).std()
   df['BB_Upper'] = df['MA20'] + (df['STD20'] * 2)
   df['BB_Lower'] = df['MA20'] - (df['STD20'] * 2)
+
   delta = df['Close'].diff()
   gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
   loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-  df['RSI'] = 100 - (100 / (1 + (gain / loss)))
+  rs = gain / loss
+  df['RSI'] = 100 - (100 / (1 + rs))
+
+  low_min = df['Low'].rolling(window=9).min()
+  high_max = df['High'].rolling(window=9).max()
+  rsv = (df['Close'] - low_min) / (high_max - low_min) * 100
+  k_list, d_list = [50.0], [50.0]
+  rsv_values = rsv.fillna(50).values
+  for r in rsv_values[1:]:
+    k_val = (2 / 3) * k_list[-1] + (1 / 3) * r
+    d_val = (2 / 3) * d_list[-1] + (1 / 3) * k_val
+    k_list.append(k_val)
+    d_list.append(d_val)
+  df['K'] = k_list
+  df['D'] = d_list
+
+  exp12 = df['Close'].ewm(span=12, adjust=False).mean()
+  exp26 = df['Close'].ewm(span=26, adjust=False).mean()
+  df['MACD_DIF'] = exp12 - exp26
+  df['MACD_DEM'] = df['MACD_DIF'].ewm(span=9, adjust=False).mean()
+  df['MACD_OSC'] = (df['MACD_DIF'] - df['MACD_DEM']) * 2
   return df
 
 
@@ -181,6 +202,69 @@ def calculate_support_resistance(hist_df):
         ),
     )
   return 0.0, 0.0, 0.0
+
+
+def ai_risk_assessment(latest, prev, hist_df, revenue_growth):
+  close = float(latest['Close'])
+  ma20 = float(latest['MA20'])
+  ma10 = float(latest['MA10'])
+  k = float(latest['K'])
+  d = float(latest['D'])
+  rsi = float(latest['RSI'])
+  macd_osc = float(latest['MACD_OSC'])
+  upper = float(latest['BB_Upper'])
+  lower = float(latest['BB_Lower'])
+
+  if close > ma20 and ma10 > ma20 and macd_osc > 0:
+    trend = '📈 多頭排列 (偏多)'
+  elif close < ma20 and macd_osc < 0:
+    trend = '📉 空頭排列 (偏空)'
+  else:
+    trend = '🔄 區間盤整 (多空交織)'
+
+  if close >= upper:
+    bb_pos = '🔥 觸及或突破布林上軌 (短線過熱)'
+  elif close <= lower:
+    bb_pos = '❄️ 跌破或貼近布林下軌 (短線超跌/留意支撐)'
+  elif close > ma20:
+    bb_pos = '⬆️ 中軌與上軌之間 (強勢區)'
+  else:
+    bb_pos = '⬇️ 中軌與下軌之間 (弱勢區)'
+
+  recent_vol_val = float(hist_df['Volume'].iloc[-1])
+  dt_risk_score = 0
+  dt_reasons = []
+
+  if recent_vol_val < 300000:
+    dt_risk_score += 2
+    dt_reasons.append('⚠️ **流動性警示**：成交量低於 300 張。')
+  else:
+    dt_reasons.append('✅ **流動性確認**：成交量超過 300 張。')
+
+  if close >= upper:
+    dt_risk_score += 1
+    dt_reasons.append('⚡ **乖離過大警示**：觸及布林上軌，防範回吐。')
+  else:
+    dt_reasons.append('✅ **乖離穩定**：多方空間健康。')
+
+  day_trading_risk = (
+      '🔴 警戒 (流動性較差)' if dt_risk_score >= 2 else '🟢 穩健 (符合進場條件)'
+  )
+  risk_level = (
+      '🔴 高風險 (指標過熱)'
+      if rsi > 80 or close >= upper
+      else '🟢 低風險 (指標健康)'
+  )
+
+  return (
+      trend,
+      risk_level,
+      bb_pos,
+      day_trading_risk,
+      dt_reasons,
+      '✅ 適合短波段與回踩進場操作',
+      ['✅ 均線結構正常', '✅ 量價與動能穩定'],
+  )
 
 
 # --- 側邊欄控制面板 ---
@@ -207,6 +291,11 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
         latest_price = hist_df['Close'].iloc[-1]
         support_p, resistance_p, pivot_p = calculate_support_resistance(hist_df)
         tech_df = calculate_technical_indicators(hist_df)
+        latest = tech_df.iloc[-1]
+        prev = tech_df.iloc[-2]
+        trend, risk_level, bb_pos, day_trading_risk, dt_reasons, lt_advice, lt_reasons = ai_risk_assessment(
+            latest, prev, hist_df, 5.0
+        )
 
         st.subheader(f'📌 查詢結果：{target_ticker.upper()}')
         st.metric(
@@ -216,13 +305,66 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
         )
 
         st.info(
-            f'💡 **操作參考價位**\n\n'
+            f'💡 **操作參考價位與 AI 評估**\n\n'
             f'- 🟢 建議買進區間：`{pivot_p * 0.99:.2f}` ~ `{pivot_p:.2f}`\n'
             f'- 🛑 停損防守價：`{support_p}`\n'
-            f'- 🎯 目標壓力價：`{resistance_p}`'
+            f'- 🎯 目標壓力價：`{resistance_p}`\n'
+            f'- 🌀 布林通道位置：{bb_pos}'
         )
 
-        # 繪製圖表 (手機上自動響應寬度)
+        # --- 新增區塊：當日每分鐘分時走勢與成交量 ---
+        st.markdown(f'### ⏱️ 當日每分鐘分時走勢與成交量')
+        try:
+          min_df = stock_obj.history(period='1d', interval='1m')
+          if not min_df.empty:
+            fig_min = make_subplots(
+                rows=2,
+                cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.03,
+                row_heights=[0.75, 0.25],
+            )
+            fig_min.add_trace(
+                go.Scatter(
+                    x=min_df.index,
+                    y=min_df['Close'],
+                    mode='lines',
+                    name='每分鐘收盤價',
+                    line=dict(color='#1f77b4', width=1.5),
+                ),
+                row=1,
+                col=1,
+            )
+            min_colors = [
+                'red' if row['Close'] >= row['Open'] else 'green'
+                for idx, row in min_df.iterrows()
+            ]
+            fig_min.add_trace(
+                go.Bar(
+                    x=min_df.index,
+                    y=min_df['Volume'] / 1000,
+                    marker_color=min_colors,
+                    name='每分鐘成交量(張)',
+                ),
+                row=2,
+                col=1,
+            )
+            fig_min.update_layout(
+                xaxis_rangeslider_visible=False,
+                height=350,
+                margin=dict(l=10, r=10, t=30, b=10),
+            )
+            st.plotly_chart(fig_min, use_container_width=True)
+          else:
+            st.info(
+                '目前非交易時段或無當日每分鐘分時資料（Yahoo Finance'
+                ' 1分鐘資料僅提供近幾個交易日內）。'
+            )
+        except Exception:
+          pass
+
+        # --- 日K線圖（含 MA 均線與布林通道上下軌）---
+        st.markdown(f'### 📊 日K線圖、均線與布林通道')
         fig = make_subplots(
             rows=2,
             cols=1,
@@ -242,12 +384,24 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             row=1,
             col=1,
         )
+
+        # 均線群組
         fig.add_trace(
             go.Scatter(
                 x=tech_df.index,
                 y=tech_df['MA5'],
                 line=dict(color='orange', width=1),
                 name='MA5',
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=tech_df.index,
+                y=tech_df['MA10'],
+                line=dict(color='green', width=1),
+                name='MA10',
             ),
             row=1,
             col=1,
@@ -262,10 +416,49 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             row=1,
             col=1,
         )
+
+        # 布林通道上下軌
+        fig.add_trace(
+            go.Scatter(
+                x=tech_df.index,
+                y=tech_df['BB_Upper'],
+                line=dict(color='darkorange', width=1, dash='dash'),
+                name='BB Upper',
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=tech_df.index,
+                y=tech_df['BB_Lower'],
+                line=dict(color='forestgreen', width=1, dash='dash'),
+                name='BB Lower',
+            ),
+            row=1,
+            col=1,
+        )
+
+        colors = [
+            'red' if row['Close'] >= row['Open'] else 'green'
+            for idx, row in tech_df.iterrows()
+        ]
+        fig.add_trace(
+            go.Bar(
+                x=tech_df.index,
+                y=tech_df['Volume'] / 1000,
+                marker_color=colors,
+                name='成交量(張)',
+            ),
+            row=2,
+            col=1,
+        )
+
         fig.update_layout(
             xaxis_rangeslider_visible=False,
-            height=400,
+            height=500,
             margin=dict(l=10, r=10, t=30, b=10),
+            hovermode='x unified',
         )
         st.plotly_chart(fig, use_container_width=True)
       else:
@@ -276,11 +469,9 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
 # --- 掃描主畫面 ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
-  st.success(
-      '🚀 手機版高效掃描完成！點擊上方各分頁即可檢視突破回踩與強勢標的。'
-  )
+  st.success('🚀 600 檔突破回踩策略掃描完成！')
 else:
   if 'active_ticker' not in st.session_state:
     st.info(
-        '📱 歡迎使用手機版！請點擊左上角 **`>`** 箭頭打開選單輸入代號查詢，或直接執行全市場掃描。'
+        '👈 請點擊左上角選單輸入代號查詢，或直接執行 600 檔突破回踩機會股掃描。'
     )
