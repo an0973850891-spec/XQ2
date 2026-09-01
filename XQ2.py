@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import requests
@@ -15,10 +15,10 @@ st.set_page_config(
 )
 
 st.title(
-    '📈 台股技術分析、突破回踩進場機會股掃描 & 智慧損益試算系統 (整合完整版)'
+    '📈 台股技術分析、突破回踩進場機會股掃描 & 智慧損益試算系統 (EPS修正版)'
 )
 st.markdown(
-    '本系統結合了 **600 檔突破回踩高勝率策略掃描、個股詳細技術分析（含布林通道與每分鐘走勢）** 以及 **台股智慧損益試算表**！'
+    '本系統已修正 EPS 計算邏輯，排除總淨利干擾，正確顯示 **每股盈餘 (EPS)**！'
 )
 
 # 忽略警告
@@ -130,21 +130,40 @@ def get_single_stock_fundamental(ticker, price):
     stock = yf.Ticker(ticker)
     info = stock.info
     revenue_growth = float(info.get('revenueGrowth', 0.0) or 0.0) * 100
+
     q_financials = stock.quarterly_income_stmt
     if q_financials is not None and not q_financials.empty:
+      # 嚴格只抓取每股盈餘相關欄位，排除總淨利
+      possible_rows = [
+          'Basic EPS',
+          'Diluted EPS',
+          'BasicEPS',
+          'DilutedEPS',
+          'Earnings Per Share',
+      ]
+      eps_series = None
       for name in q_financials.index:
-        if 'eps' in str(name).lower() or 'net income' in str(name).lower():
-          eps_series = q_financials.loc[name].dropna()
-          if len(eps_series) >= 3:
-            eps_3q = float(eps_series.iloc[:3].sum())
-            break
+        for target in possible_rows:
+          if target.lower() in str(name).lower():
+            eps_series = q_financials.loc[name].dropna()
+            if len(eps_series) >= 3:
+              break
+        if eps_series is not None and len(eps_series) >= 3:
+          break
+      if eps_series is not None and len(eps_series) >= 3:
+        val = eps_series.iloc[:3].sum()
+        if val != 0:
+          eps_3q = float(val)
+
+    # 若財報找不到，改用 info 的 trailingEps 推估近 3 季
     if eps_3q == 0:
       trailing_eps = info.get('trailingEps', 0)
       if trailing_eps:
         eps_3q = float(trailing_eps) * 0.75
+
     pe_ratio = float(info.get('trailingPE', 0) or 0)
-    if pe_ratio == 0:
-      pe_ratio = price / (eps_3q * (4 / 3)) if eps_3q > 0 else 999
+    if pe_ratio == 0 and eps_3q > 0:
+      pe_ratio = price / (eps_3q * (4 / 3))
   except Exception:
     pe_ratio = 999
   return round(eps_3q, 2), round(pe_ratio, 2), round(revenue_growth, 2)
@@ -381,7 +400,6 @@ if app_mode == '📊 智慧損益試算表 (小工具)':
 
 # --- 功能模式 2：突破回踩策略掃描與個股查詢 ---
 else:
-  # 個股查詢區
   if search_btn and input_ticker:
     st.session_state['active_ticker'] = input_ticker.strip()
 
