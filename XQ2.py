@@ -13,9 +13,9 @@ st.set_page_config(
     page_title='台股篩選、大盤趨勢與 突破回踩進場機會股策略系統', layout='wide'
 )
 
-st.title('📈 台股技術分析與 🔥 🎯 突破回踩進場機會股掃描 (含AI風險評估完整版)')
+st.title('📈 台股技術分析與 🔥 🎯 突破回踩高勝率進場機會股掃描 (完整修復版)')
 st.markdown(
-    '本系統支援 200 檔全價格帶掃描，並已將 **AI 智能風險評估、建議價位、布林通道與均線** 全部完整恢復！'
+    '本系統支援 600 檔全價格帶掃描，已完整恢復 **突破回踩策略排行榜、AI風險評估、布林通道與均線**！'
 )
 
 # 忽略警告
@@ -317,7 +317,6 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
             delta=f'{latest_price - hist_df["Close"].iloc[-2]:+.2f}',
         )
 
-        # --- 恢復 AI 智能風險與操作評估區塊 ---
         st.markdown(f'### 🤖 AI 智能風險與進場機會評估：{target_ticker.upper()}')
         ai_col1, ai_col2 = st.columns(2)
         with ai_col1:
@@ -348,7 +347,6 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
           for reason in dt_reasons:
             st.markdown(f'- {reason}')
 
-        # --- 當日每分鐘分時走勢與成交量 ---
         st.markdown('---')
         st.markdown(f'### ⏱️ 當日每分鐘分時走勢與成交量')
         try:
@@ -397,7 +395,6 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
         except Exception:
           pass
 
-        # --- 日K線圖（含 MA 均線與布林通道上下軌）---
         st.markdown('---')
         st.markdown(f'### 📊 日K線圖、均線與布林通道')
         fig = make_subplots(
@@ -499,10 +496,181 @@ if 'active_ticker' in st.session_state and st.session_state['active_ticker']:
   except Exception as e:
     st.error(f'查詢發生錯誤: {e}')
 
-# --- 掃描主畫面 ---
+# --- 600 檔掃描主畫面 ---
 if run_scan or 'has_scanned_all' in st.session_state:
   st.session_state['has_scanned_all'] = True
-  st.success('🚀 600 檔突破回踩策略掃描完成！')
+
+  df_market_all = get_tw_stock_list_all()
+  df_eps_pe_results = []
+  breakout_pullback_pool = []
+  pool_3_liquidity = []
+
+  target_df = df_market_all.head(600)
+  total_items = len(target_df)
+
+  progress_text = st.empty()
+  progress_bar = st.progress(0)
+
+  for i, (index, row) in enumerate(target_df.iterrows()):
+    ticker = row['代號']
+    name = row['名稱']
+    price = row['收盤價']
+
+    progress_text.text(
+        f'正在掃描突破回踩機會股 ({i+1}/{total_items}): {ticker} {name}'
+    )
+
+    eps_3q, pe_ratio, _ = get_single_stock_fundamental(ticker, price)
+    if pe_ratio != 999:
+      df_eps_pe_results.append({
+          '股票代號': ticker,
+          '名稱': name,
+          '股價': price,
+          '近3季EPS': eps_3q,
+          '本益比': pe_ratio,
+      })
+
+    try:
+      st_obj = yf.Ticker(ticker)
+      h_df = st_obj.history(period='2mo')
+      if len(h_df) >= 25:
+        vol_today = float(h_df['Volume'].iloc[-1])
+        if vol_today < 300000:
+          progress_bar.progress((i + 1) / total_items)
+          continue
+
+        t_df = calculate_technical_indicators(h_df)
+        latest_t = t_df.iloc[-1]
+
+        ma5 = float(latest_t['MA5'])
+        ma10 = float(latest_t['MA10'])
+        ma20 = float(latest_t['MA20'])
+        if not (ma5 > ma10 and ma10 > ma20):
+          progress_bar.progress((i + 1) / total_items)
+          continue
+
+        c_latest = float(h_df['Close'].iloc[-1])
+        o_latest = float(h_df['Open'].iloc[-1])
+        h_latest = float(h_df['High'].iloc[-1])
+        c_prev1 = float(h_df['Close'].iloc[-2])
+
+        vol_20d = float(h_df['Volume'].tail(20).mean())
+        vol_ratio = vol_today / vol_20d if vol_20d > 0 else 1
+
+        body_len = abs(c_latest - o_latest)
+        upper_shadow = h_latest - max(c_latest, o_latest)
+        if upper_shadow > body_len * 1.5 and vol_ratio > 2.5:
+          progress_bar.progress((i + 1) / total_items)
+          continue
+
+        is_breakout_pattern = False
+        breakout_score = 0
+        for idx in range(-5, -2):
+          if abs(h_df.index.get_loc(h_df.index[idx])) < len(h_df) - 3:
+            continue
+          c_p = float(h_df['Close'].iloc[idx])
+          o_p = float(h_df['Open'].iloc[idx])
+          v_p = float(h_df['Volume'].iloc[idx])
+          v_avg = float(h_df['Volume'].iloc[idx - 20 : idx].mean())
+          v_rat = v_p / v_avg if v_avg > 0 else 1
+
+          if c_p > o_p and v_rat >= 1.4:
+            red_half = o_p + (c_p - o_p) * 0.5
+            sub_pullback_lows = [
+                float(h_df['Low'].iloc[idx + 1]),
+                float(h_df['Low'].iloc[idx + 2]),
+            ]
+            if all(l >= red_half for l in sub_pullback_lows):
+              if c_latest > o_latest and c_latest > c_prev1:
+                is_breakout_pattern = True
+                breakout_score = v_rat * (c_latest / red_half)
+                break
+
+        if is_breakout_pattern:
+          breakout_pullback_pool.append({
+              '股票代號': ticker,
+              '名稱': name,
+              '收盤價': price,
+              '量能放大倍率': round(vol_ratio, 2),
+              '均線狀態': '🟢 5MA>10MA>20MA',
+              '進場機會得分': round(breakout_score * 10, 1),
+              '特徵': '🎯 紅K突破 + 回踩不破半 + 轉強',
+          })
+
+        pool_3_liquidity.append({
+            '股票代號': ticker,
+            '名稱': name,
+            '收盤價': price,
+            '今日成交量(張)': int(vol_today / 1000),
+        })
+    except Exception:
+      pass
+
+    progress_bar.progress((i + 1) / total_items)
+
+  progress_text.empty()
+  progress_bar.empty()
+
+  df_ep = pd.DataFrame(df_eps_pe_results)
+  df_bp = pd.DataFrame(breakout_pullback_pool)
+
+  st.success('🔥 前 600 檔 🎯 突破回踩進場機會股智慧掃描完成！')
+
+  # --- 完整呈現掃描結果的分頁與表格 ---
+  tab1, tab2, tab3 = st.tabs([
+      '🎯 突破回踩進場機會股 (核心策略)',
+      '📊 全價格帶 EPS/本益比排行',
+      '🔥 市場流動性與強勢標的',
+  ])
+
+  with tab1:
+    st.subheader(
+        '🎯 突破回踩進場機會股排行榜 (紅K突破、量增1.5-2倍、回踩不破半、多頭排列)'
+    )
+    if not df_bp.empty:
+      st.dataframe(
+          df_bp.sort_values(by='進場機會得分', ascending=False)
+          .head(25)
+          .reset_index(drop=True),
+          use_container_width=True,
+      )
+    else:
+      st.info(
+          '目前盤勢中符合「突破後回踩未破紅K半數且今日轉強 + 5MA>10MA>20MA」的標的較少，建議盤後或個別輸入代號查詢。'
+      )
+
+  with tab2:
+    st.subheader('近 3 季 EPS 與本益比排行 (全價格帶)')
+    if not df_ep.empty:
+      c_sub1, c_sub2 = st.tabs(['EPS 排行', '本益比排行'])
+      with c_sub1:
+        st.dataframe(
+            df_ep.sort_values(by='近3季EPS', ascending=False).reset_index(
+                drop=True
+            ),
+            use_container_width=True,
+        )
+      with c_sub2:
+        st.dataframe(
+            df_ep.sort_values(by='本益比', ascending=True).reset_index(
+                drop=True
+            ),
+            use_container_width=True,
+        )
+    else:
+      st.warning('目前無符合條件股票。')
+
+  with tab3:
+    st.subheader('🔥 市場流動性與強勢標的')
+    if not pd.DataFrame(pool_3_liquidity).empty:
+      st.dataframe(
+          pd.DataFrame(pool_3_liquidity).sort_values(
+              by='今日成交量(張)', ascending=False
+          ).reset_index(drop=True),
+          use_container_width=True,
+      )
+    else:
+      st.info('目前無資料。')
 else:
   if 'active_ticker' not in st.session_state:
     st.info(
