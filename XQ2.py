@@ -10,7 +10,7 @@ st.set_page_config(page_title="台股智慧技術分析與週轉率系統", layo
 
 st.title("📊 台股智慧技術分析與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動繪製昨日分時走勢與成交量、K線圖、布林通道、KD、RSI、週轉率，並由 AI 模組提供策略建議與警示燈號。"
+    "輸入台股代號，自動繪製清晰起伏的昨日分時走勢圖（含平盤線與成交量）、K線圖、布林通道、KD、RSI、週轉率與 AI 策略建議。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -133,7 +133,6 @@ if st.button("開始 AI 深度分析", type="primary"):
   else:
     with st.spinner(f"正在載入代號 {stock_id} 的資料並進行 AI 智慧分析..."):
       try:
-        # 1. 取得每日歷史資料（作為技術指標與多日檢視用）
         ticker_symbol = f"{stock_id.strip()}.TW"
         stock = yf.Ticker(ticker_symbol)
         hist = stock.history(period="6mo")
@@ -151,20 +150,17 @@ if st.button("開始 AI 深度分析", type="primary"):
         else:
           shares_outstanding = stock.info.get("sharesOutstanding")
 
-          # 2. 取得最近 5 天的 1 分鐘高頻資料，藉此精準擷取出「昨天」完整交易日的資料
+          # 取得最近 5 天的 1 分鐘高頻資料，擷取昨天分時行情
           intraday_5d = stock.history(period="5d", interval="1m")
 
           if not intraday_5d.empty:
-            # 取得資料中出現的所有不重複日期
             available_dates = intraday_5d.index.normalize().unique()
             if len(available_dates) >= 2:
-              # 倒數第二個日期即為「昨天」（最近一個完整交易日）
               target_date = available_dates[-2]
               yesterday_df = intraday_5d[
                   intraday_5d.index.normalize() == target_date
               ]
             else:
-              # 若資料不足兩天，則取最後一天
               yesterday_df = intraday_5d
           else:
             yesterday_df = pd.DataFrame()
@@ -221,46 +217,58 @@ if st.button("開始 AI 深度分析", type="primary"):
               st.warning(f"**📈 中期趨勢規劃**\n\n{mid_p}")
             st.markdown("---")
 
-            # --- 1. 昨天分時行情走勢圖（含成交量雙子圖） ---
-            st.subheader("📈 昨日分時行情走勢圖（含成交量）")
+            # --- 1. 昨日分時行情走勢圖（含平盤線與成交量，起伏明顯） ---
+            st.subheader("📈 昨日分時行情走勢圖（含平盤參考線與成交量）")
             if yesterday_df.empty:
               st.info("目前無法取得昨日分時資料。")
             else:
-              # 將分時成交量轉換為張
               yesterday_df["Intraday_Volume_Lot"] = yesterday_df["Volume"] / 1000.0
               y_colors = [
                   "red" if r["Close"] >= r["Open"] else "green"
                   for _, r in yesterday_df.iterrows()
               ]
 
+              # 計算平盤價（以昨日第一筆資料或開盤價作為基準，或抓取歷史前一日收盤）
+              prev_close = yesterday_df["Close"].iloc[0]
+
               y_fig = make_subplots(
                   rows=2,
                   cols=1,
                   shared_xaxes=True,
                   vertical_spacing=0.03,
-                  row_heights=[0.7, 0.3],
+                  row_heights=[0.75, 0.25],
                   subplot_titles=(
                       "昨日分時走勢圖 (Price)",
                       "昨日分時成交量 (張)",
                   ),
               )
 
-              # 價格曲線
+              # 分時股價曲線
               y_fig.add_trace(
                   go.Scatter(
                       x=yesterday_df.index,
                       y=yesterday_df["Close"],
                       mode="lines",
                       name="分時股價",
-                      line=dict(color="blue", width=2),
-                      fill="tozeroy",
-                      fillcolor="rgba(0,0,255,0.05)",
+                      line=dict(color="#0066ff", width=2),
                   ),
                   row=1,
                   col=1,
               )
 
-              # 成交量柱狀圖
+              # 加入平盤參考線 (灰色虛線)
+              y_fig.add_shape(
+                  type="line",
+                  x0=yesterday_df.index[0],
+                  x1=yesterday_df.index[-1],
+                  y0=prev_close,
+                  y1=prev_close,
+                  line=dict(color="gray", width=1, dash="dash"),
+                  row=1,
+                  col=1,
+              )
+
+              # 分時成交量柱狀圖
               y_fig.add_trace(
                   go.Bar(
                       x=yesterday_df.index,
@@ -272,8 +280,17 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
+              # 自動縮放 Y 軸，讓股價起伏變得非常顯著（類似看盤軟體）
+              y_min = yesterday_df["Close"].min()
+              y_max = yesterday_df["Close"].max()
+              padding = (y_max - y_min) * 0.1 if y_max != y_min else 1.0
+
+              y_fig.update_yaxes(
+                  range=[y_min - padding, y_max + padding], row=1, col=1
+              )
+
               y_fig.update_layout(
-                  height=500,
+                  height=520,
                   xaxis_rangeslider_visible=False,
                   template="plotly_white",
                   showlegend=False,
