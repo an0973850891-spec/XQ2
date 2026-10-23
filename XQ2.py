@@ -13,7 +13,7 @@ st.set_page_config(
 
 st.title("📊 台股智慧技術分析、當沖法則、主力籌碼與 AI 系統")
 st.write(
-    "輸入台股代號，自動同步呈現中文簡稱、多空訊號燈、當沖實戰法則、AI 策略建議、主力進出籌碼、分時走勢、K線圖與技術指標。"
+    "輸入台股代號，自動同步呈現 VWAP 數值、多空訊號燈、當沖實戰法則、AI 策略建議、主力進出籌碼、中文簡稱、分時走勢、K線圖與技術指標。"
 )
 
 # 已內建您的 FinMind API Token
@@ -38,7 +38,7 @@ period_days_map = {
 }
 n_days = period_days_map[selected_period]
 
-# 常見熱門股票中文對應字典（作第一層快速對應）
+# 常見熱門股票中文對應字典
 stock_name_map = {
     "1218": "泰山",
     "1815": "富喬",
@@ -210,12 +210,14 @@ def generate_ai_analysis(display_hist, latest_turnover):
 
 
 def generate_day_trading_rules(yesterday_df, ref_price):
-  """當沖實戰法則與多空訊號燈研判邏輯"""
+  """當沖實戰法則與多空訊號燈、VWAP 數值解析邏輯"""
   if yesterday_df.empty or len(yesterday_df) < 5:
     return (
         ["資料不足，無法產生當沖指標。"],
         "請於開盤或盤中時段查詢即時分時資料。",
         "⚪ 中性觀望燈",
+        0.0,
+        0.0,
     )
 
   latest_price = yesterday_df["Close"].iloc[-1]
@@ -227,17 +229,22 @@ def generate_day_trading_rules(yesterday_df, ref_price):
   rules = []
   bullish_score = 0
 
+  diff_price = latest_price - latest_vwap
+  diff_pct = (diff_price / latest_vwap) * 100 if latest_vwap > 0 else 0
+
   if latest_price >= latest_vwap:
     rules.append(
         "🟢 **VWAP 均價線多方戰法**：現價 (**"
-        f"{latest_price:.2f}**) 位於成交均價線 (**{latest_vwap:.2f}**) 之上，"
+        f"{latest_price:.2f}**) 位於成交均價線 (**{latest_vwap:.2f}**) 之上（高出"
+        f" **{diff_price:+.2f}** 元 / **{diff_pct:+.2f}%**），"
         "盤勢偏多。拉回至 VWAP 附近若量縮有守，可偏多試單。"
     )
     bullish_score += 1
   else:
     rules.append(
         "🔴 **VWAP 均價線空方戰法**：現價 (**"
-        f"{latest_price:.2f}**) 位於成交均價線 (**{latest_vwap:.2f}**) 之下，"
+        f"{latest_price:.2f}**) 位於成交均價線 (**{latest_vwap:.2f}**) 之下（低於"
+        f" **{diff_price:.2f}** 元 / **{diff_pct:.2f}%**），"
         "盤勢偏弱。反彈至 VWAP 遇壓無力時，可留意空方試單機會。"
     )
     bullish_score -= 1
@@ -271,7 +278,7 @@ def generate_day_trading_rules(yesterday_df, ref_price):
       "3. **量價配合**：若急拉無量或急殺帶量破底，應順勢操作、切勿逆勢攤平。"
   )
 
-  return rules, risk_mgmt, signal_light
+  return rules, risk_mgmt, signal_light, latest_vwap, diff_pct
 
 
 if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
@@ -299,7 +306,6 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
           )
         else:
           info = stock.info
-          # 智慧取得中文名稱（優先透過 FinMind API 查詢，若無則備援清理英文名稱）
           stock_name = get_stock_chinese_name(cleaned_id, FINMIND_TOKEN)
           if not stock_name:
             raw_name = (
@@ -398,8 +404,8 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
             st.markdown("---")
             st.subheader("⚡ 當沖實戰法則與盤中多空研判")
 
-            day_rules, day_risk, signal_light = generate_day_trading_rules(
-                yesterday_df, ref_price
+            day_rules, day_risk, signal_light, latest_vwap, vwap_diff_pct = (
+                generate_day_trading_rules(yesterday_df, ref_price)
             )
 
             if "強勢多方燈" in signal_light:
@@ -408,6 +414,16 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
               st.error(f"### 🚦 多空訊號燈：{signal_light}")
             else:
               st.warning(f"### 🚦 多空訊號燈：{signal_light}")
+
+            # 額外秀出即時 VWAP 與現價對比卡片
+            v1, v2, v3 = st.columns(3)
+            v1.metric("即時成交均價 (VWAP)", f"{latest_vwap:.2f}")
+            v2.metric("目前最新價", f"{latest_close:.2f}")
+            v3.metric(
+                "VWAP 乖離幅度",
+                f"{vwap_diff_pct:+.2f}%",
+                delta_color="normal" if vwap_diff_pct >= 0 else "inverse",
+            )
 
             d_col1, d_col2 = st.columns(2)
             with d_col1:
@@ -726,5 +742,5 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
 
             st.plotly_chart(fig, use_container_width=True)
 
-      except Exception as e:
+      exceptException as e:
         st.error(f"程式執行時發生未預期的錯誤：{e}")
