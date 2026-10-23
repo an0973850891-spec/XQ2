@@ -6,11 +6,11 @@ import streamlit as st
 import yfinance as yf
 
 # 設定網頁標題與排版
-st.set_page_config(page_title="台股智慧技術分析與 AI 策略系統", layout="wide")
+st.set_page_config(page_title="台股智慧技術分析與 AI 系統", layout="wide")
 
 st.title("📊 台股智慧技術分析與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動繪製分時走勢圖（含參考價基準、紅綠填色與成交量）、K線圖、技術指標與 AI 策略建議。"
+    "輸入台股代號，自動同步呈現分時走勢、參考價基準、紅綠填色與成交量、K線圖、技術指標與 AI 策略建議。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -165,22 +165,25 @@ if st.button("開始 AI 深度分析", type="primary"):
           if display_hist.empty:
             st.warning("選定的區間內沒有足夠的交易資料。")
           else:
-            st.success(
-                f"成功取得代號 {stock_id} 的分析結果（顯示近 {selected_period}）！"
-            )
+            # 統一數值來源：若昨日分時資料存在，最新收盤價強制對齊分時圖最後一筆價位
+            if not yesterday_df.empty:
+              latest_close = yesterday_df["Close"].iloc[-1]
+              price_diff = (
+                  latest_close - yesterday_df["Close"].iloc[-2]
+                  if len(yesterday_df) >= 2
+                  else 0.0
+              )
+            else:
+              latest_close = display_hist["Close"].iloc[-1]
+              price_diff = display_hist["Close"].diff().iloc[-1]
 
-            latest_close = display_hist["Close"].iloc[-1]
             latest_turnover = display_hist["週轉率(%)"].iloc[-1]
             latest_rsi = display_hist["RSI"].iloc[-1]
             latest_k = display_hist["K"].iloc[-1]
             latest_d = display_hist["D"].iloc[-1]
 
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric(
-                "最新收盤價",
-                f"{latest_close:.2f}",
-                f"{display_hist['Close'].diff().iloc[-1]:.2f}",
-            )
+            m1.metric("最新收盤價", f"{latest_close:.2f}", f"{price_diff:.2f}")
             m2.metric("單日週轉率", f"{latest_turnover:.2f}%")
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
@@ -212,7 +215,7 @@ if st.button("開始 AI 深度分析", type="primary"):
             # --- 1. 分時行情走勢圖（參考價、紅綠填色、成交量） ---
             st.markdown(
                 f"### 📈 昨日分時即時行情\n"
-                f"**參考價 (昨收)**: `{ref_price:.2f}`"
+                f"**參考價 (昨收)**: `{ref_price:.2f}` | **分時收盤價**: `{latest_close:.2f}`"
             )
 
             if yesterday_df.empty:
