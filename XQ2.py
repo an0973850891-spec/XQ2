@@ -415,7 +415,6 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
             else:
               st.warning(f"### 🚦 多空訊號燈：{signal_light}")
 
-            # 額外秀出即時 VWAP 與現價對比卡片
             v1, v2, v3 = st.columns(3)
             v1.metric("即時成交均價 (VWAP)", f"{latest_vwap:.2f}")
             v2.metric("目前最新價", f"{latest_close:.2f}")
@@ -742,5 +741,5 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
 
             st.plotly_chart(fig, use_container_width=True)
 
-      exceptException as e:
+      except Exception as e:
         st.error(f"程式執行時發生未預期的錯誤：{e}")
