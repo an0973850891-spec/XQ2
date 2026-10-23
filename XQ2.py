@@ -141,24 +141,26 @@ if st.button("開始 AI 深度分析", type="primary"):
           hist = calculate_technical_indicators(hist, shares_outstanding)
           display_hist = hist.tail(n_days).copy()
 
-          # 2. 嚴格對齊：以日K線最後一個交易日作為「目標分析日」，往前抓取分時資料
+          # 2. 嚴格對齊：以日K線最後一個交易日作為「目標分析日」
           if len(hist) >= 2:
             target_date = hist.index[-1].strftime("%Y-%m-%d")
             ref_price = hist["Close"].iloc[-2]  # 參考價為前一日收盤價
+            latest_close = hist["Close"].iloc[-1]  # 強制對齊日K最後正規收盤價
+            price_diff = hist["Close"].iloc[-1] - hist["Close"].iloc[-2]
           else:
             target_date = hist.index[-1].strftime("%Y-%m-%d")
             ref_price = hist["Close"].iloc[-1]
+            latest_close = hist["Close"].iloc[-1]
+            price_diff = 0.0
 
           # 利用 yfinance 抓取涵蓋該日的高頻分時資料
           intraday_data = stock.history(period="7d", interval="1m")
 
           if not intraday_data.empty:
-            # 過濾出剛好等於目標日期的分時資料
             intraday_data.index = pd.to_datetime(intraday_data.index)
             yesterday_df = intraday_data[
                 intraday_data.index.strftime("%Y-%m-%d") == target_date
             ]
-            # 如果剛好當天沒有分時（例如剛收盤還沒更新），則取最後一個有資料的交易日
             if yesterday_df.empty:
               available_dates = intraday_data.index.normalize().unique()
               if len(available_dates) >= 1:
@@ -169,21 +171,15 @@ if st.button("開始 AI 深度分析", type="primary"):
           else:
             yesterday_df = pd.DataFrame()
 
+          # 確保分時圖的最後一筆收盤價強制與日K收盤價一致，解決高頻數據尾盤跳動落差
+          if not yesterday_df.empty:
+            yesterday_df.iloc[-1, yesterday_df.columns.get_loc("Close")] = (
+                latest_close
+            )
+
           if display_hist.empty:
             st.warning("選定的區間內沒有足夠的交易資料。")
           else:
-            # 3. 強制統一數值：優先以日K最後一筆收盤價（或分時最後一筆）為準
-            if not yesterday_df.empty:
-              latest_close = yesterday_df["Close"].iloc[-1]
-              price_diff = (
-                  latest_close - yesterday_df["Close"].iloc[-2]
-                  if len(yesterday_df) >= 2
-                  else 0.0
-              )
-            else:
-              latest_close = hist["Close"].iloc[-1]
-              price_diff = hist["Close"].diff().iloc[-1]
-
             latest_turnover = display_hist["週轉率(%)"].iloc[-1]
             latest_rsi = display_hist["RSI"].iloc[-1]
             latest_k = display_hist["K"].iloc[-1]
@@ -222,7 +218,7 @@ if st.button("開始 AI 深度分析", type="primary"):
             # --- 1. 分時行情走勢圖（對齊目標交易日） ---
             st.markdown(
                 f"### 📈 分時即時行情（日期: {target_date}）\n"
-                f"**參考價 (基準)**: `{ref_price:.2f}` | **分時收盤價**: `{latest_close:.2f}`"
+                f"**參考價 (昨收)**: `{ref_price:.2f}` | **收盤價**: `{latest_close:.2f}`"
             )
 
             if yesterday_df.empty:
