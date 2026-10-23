@@ -10,7 +10,7 @@ st.set_page_config(page_title="台股智慧技術分析與週轉率系統", layo
 
 st.title("📊 台股智慧技術分析與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動繪製當日分時走勢與成交量、K線圖、布林通道、KD、RSI、週轉率，並由 AI 模組提供策略建議與警示燈號。"
+    "輸入台股代號，自動繪製昨日分時走勢與成交量、K線圖、布林通道、KD、RSI、週轉率，並由 AI 模組提供策略建議與警示燈號。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -151,8 +151,23 @@ if st.button("開始 AI 深度分析", type="primary"):
         else:
           shares_outstanding = stock.info.get("sharesOutstanding")
 
-          # 2. 嘗試取得當日（或最近一個交易日）的「分時高頻資料」(Intraday 1m)
-          intraday_df = stock.history(period="1d", interval="1m")
+          # 2. 取得最近 5 天的 1 分鐘高頻資料，藉此精準擷取出「昨天」完整交易日的資料
+          intraday_5d = stock.history(period="5d", interval="1m")
+
+          if not intraday_5d.empty:
+            # 取得資料中出現的所有不重複日期
+            available_dates = intraday_5d.index.normalize().unique()
+            if len(available_dates) >= 2:
+              # 倒數第二個日期即為「昨天」（最近一個完整交易日）
+              target_date = available_dates[-2]
+              yesterday_df = intraday_5d[
+                  intraday_5d.index.normalize() == target_date
+              ]
+            else:
+              # 若資料不足兩天，則取最後一天
+              yesterday_df = intraday_5d
+          else:
+            yesterday_df = pd.DataFrame()
 
           # 計算技術指標
           hist = calculate_technical_indicators(hist, shares_outstanding)
@@ -206,38 +221,35 @@ if st.button("開始 AI 深度分析", type="primary"):
               st.warning(f"**📈 中期趨勢規劃**\n\n{mid_p}")
             st.markdown("---")
 
-            # --- 1. 當日行情走勢圖（含成交量雙子圖） ---
-            st.subheader("📈 當日行情走勢圖（含成交量）")
-            if intraday_df.empty:
-              st.info(
-                  "目前非交易時間或無法取得當日分時資料，改以近期收盤走勢替代。"
-              )
-              st.line_chart(display_hist["Close"], use_container_width=True)
+            # --- 1. 昨天分時行情走勢圖（含成交量雙子圖） ---
+            st.subheader("📈 昨日分時行情走勢圖（含成交量）")
+            if yesterday_df.empty:
+              st.info("目前無法取得昨日分時資料。")
             else:
               # 將分時成交量轉換為張
-              intraday_df["Intraday_Volume_Lot"] = intraday_df["Volume"] / 1000.0
-              intra_colors = [
+              yesterday_df["Intraday_Volume_Lot"] = yesterday_df["Volume"] / 1000.0
+              y_colors = [
                   "red" if r["Close"] >= r["Open"] else "green"
-                  for _, r in intraday_df.iterrows()
+                  for _, r in yesterday_df.iterrows()
               ]
 
-              intra_fig = make_subplots(
+              y_fig = make_subplots(
                   rows=2,
                   cols=1,
                   shared_xaxes=True,
                   vertical_spacing=0.03,
                   row_heights=[0.7, 0.3],
                   subplot_titles=(
-                      "當日分時走勢圖 (Price)",
-                      "當日分時成交量 (張)",
+                      "昨日分時走勢圖 (Price)",
+                      "昨日分時成交量 (張)",
                   ),
               )
 
               # 價格曲線
-              intra_fig.add_trace(
+              y_fig.add_trace(
                   go.Scatter(
-                      x=intraday_df.index,
-                      y=intraday_df["Close"],
+                      x=yesterday_df.index,
+                      y=yesterday_df["Close"],
                       mode="lines",
                       name="分時股價",
                       line=dict(color="blue", width=2),
@@ -249,24 +261,24 @@ if st.button("開始 AI 深度分析", type="primary"):
               )
 
               # 成交量柱狀圖
-              intra_fig.add_trace(
+              y_fig.add_trace(
                   go.Bar(
-                      x=intraday_df.index,
-                      y=intraday_df["Intraday_Volume_Lot"],
+                      x=yesterday_df.index,
+                      y=yesterday_df["Intraday_Volume_Lot"],
                       name="分時成交量(張)",
-                      marker_color=intra_colors,
+                      marker_color=y_colors,
                   ),
                   row=2,
                   col=1,
               )
 
-              intra_fig.update_layout(
+              y_fig.update_layout(
                   height=500,
                   xaxis_rangeslider_visible=False,
                   template="plotly_white",
                   showlegend=False,
               )
-              st.plotly_chart(intra_fig, use_container_width=True)
+              st.plotly_chart(y_fig, use_container_width=True)
 
             st.markdown("---")
 
