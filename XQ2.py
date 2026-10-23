@@ -10,7 +10,7 @@ st.set_page_config(page_title="台股智慧技術分析與 AI 系統", layout="w
 
 st.title("📊 台股智慧技術分析與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動同步呈現分時走勢、參考價基準、紅綠填色與成交量、K線圖、技術指標與 AI 策略建議。"
+    "輸入台股代號，自動同步呈現公司名稱、分時走勢、參考價基準、紅綠填色與成交量、K線圖、技術指標與 AI 策略建議。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -118,7 +118,7 @@ if st.button("開始 AI 深度分析", type="primary"):
   if not stock_id.strip():
     st.warning("請先輸入有效的股票代號！")
   else:
-    with st.spinner(f"正在載入代號 {stock_id} 的資料並進行 AI 智慧分析..."):
+    with st.spinner(f"正在載入代號 {stock_id} 的資料與公司名稱..."):
       try:
         ticker_symbol = f"{stock_id.strip()}.TW"
         stock = yf.Ticker(ticker_symbol)
@@ -135,7 +135,12 @@ if st.button("開始 AI 深度分析", type="primary"):
               " 的資料，請確認代號是否正確（支援上市及上櫃股票）。"
           )
         else:
-          shares_outstanding = stock.info.get("sharesOutstanding")
+          # 取得公司名稱 (優先抓取中文簡稱或長名稱)
+          info = stock.info
+          stock_name = (
+              info.get("longName") or info.get("shortName") or stock_id
+          )
+          shares_outstanding = info.get("sharesOutstanding")
 
           # 1. 計算技術指標
           hist = calculate_technical_indicators(hist, shares_outstanding)
@@ -184,26 +189,33 @@ if st.button("開始 AI 深度分析", type="primary"):
             latest_k = display_hist["K"].iloc[-1]
             latest_d = display_hist["D"].iloc[-1]
 
+            # 顯示帶有公司名稱的主標題
+            st.subheader(f"📌 分析標的：{stock_id} 【{stock_name}】")
+
             m1, m2, m3, m4 = st.columns(4)
             with m1:
               st.markdown("最新收盤價")
-              st.markdown(
-                  f"### {latest_close:.2f}"
-              )
-              # 嚴格控制台股習慣：向上為紅、向下為綠
+              st.markdown(f"### {latest_close:.2f}")
+              # 台股習慣：向上為紅、向下為綠
               if price_diff > 0:
                 st.markdown(
-                    f"<span style='color: #ff4d4d; background-color: rgba(255,77,77,0.1); padding: 4px 8px; border-radius: 4px; font-weight: bold;'>↑ +{price_diff:.2f}</span>",
+                    f"<span style='color: #ff4d4d; background-color:"
+                    " rgba(255,77,77,0.1); padding: 4px 8px; border-radius:"
+                    f" 4px; font-weight: bold;'>↑ +{price_diff:.2f}</span>",
                     unsafe_allow_html=True,
                 )
               elif price_diff < 0:
                 st.markdown(
-                    f"<span style='color: #2eb82e; background-color: rgba(46,184,46,0.1); padding: 4px 8px; border-radius: 4px; font-weight: bold;'>↓ {price_diff:.2f}</span>",
+                    f"<span style='color: #2eb82e; background-color:"
+                    " rgba(46,184,46,0.1); padding: 4px 8px; border-radius:"
+                    f" 4px; font-weight: bold;'>↓ {price_diff:.2f}</span>",
                     unsafe_allow_html=True,
                 )
               else:
                 st.markdown(
-                    f"<span style='color: gray; background-color: rgba(128,128,128,0.1); padding: 4px 8px; border-radius: 4px; font-weight: bold;'>- 0.00</span>",
+                    "<span style='color: gray; background-color:"
+                    " rgba(128,128,128,0.1); padding: 4px 8px; border-radius:"
+                    " 4px; font-weight: bold;'>- 0.00</span>",
                     unsafe_allow_html=True,
                 )
 
