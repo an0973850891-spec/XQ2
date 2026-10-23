@@ -6,11 +6,11 @@ import streamlit as st
 import yfinance as yf
 
 # 設定網頁標題與排版
-st.set_page_config(page_title="台股三關價分時走勢與 AI 策略系統", layout="wide")
+st.set_page_config(page_title="台股智慧技術分析與 AI 策略系統", layout="wide")
 
-st.title("📊 台股三關價分時走勢與 AI 策略系統")
+st.title("📊 台股智慧技術分析與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動繪製擬真三關價分時走勢圖（含壓力、支撐、參考價、紅綠填色與成交量）、K線圖、技術指標與 AI 策略建議。"
+    "輸入台股代號，自動繪製分時走勢圖（含參考價基準、紅綠填色與成交量）、K線圖、技術指標與 AI 策略建議。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -152,21 +152,11 @@ if st.button("開始 AI 深度分析", type="primary"):
           else:
             yesterday_df = pd.DataFrame()
 
-          # 計算三關價與壓力支撐基準 (透過歷史高低收)
+          # 參考價設定為昨日收盤價
           if len(hist) >= 2:
-            p_high = hist["High"].iloc[-2]
-            p_low = hist["Low"].iloc[-2]
-            p_close = hist["Close"].iloc[-2]
+            ref_price = hist["Close"].iloc[-2]
           else:
-            p_high = hist["High"].iloc[-1]
-            p_low = hist["Low"].iloc[-1]
-            p_close = hist["Close"].iloc[-1]
-
-          hl_range = p_high - p_low
-          ref_price = p_close
-          resistance_1 = ref_price + hl_range * 0.382
-          resistance_2 = ref_price + hl_range * 0.618
-          support_1 = ref_price - hl_range * 0.382
+            ref_price = hist["Close"].iloc[-1]
 
           # 計算技術指標
           hist = calculate_technical_indicators(hist, shares_outstanding)
@@ -219,10 +209,10 @@ if st.button("開始 AI 深度分析", type="primary"):
               st.warning(f"**📈 中期趨勢規劃**\n\n{mid_p}")
             st.markdown("---")
 
-            # --- 1. 擬真三關價分時走勢圖（暗色系、三關價壓力支撐、紅綠填色） ---
+            # --- 1. 分時行情走勢圖（參考價、紅綠填色、成交量） ---
             st.markdown(
-                f"### 📈 三關價即時行情\n"
-                f"**壓力2**: `{resistance_2:.3f}` | **壓力1**: `{resistance_1:.3f}` | **參考價**: `{ref_price:.2f}` | **支撐**: `{support_1:.3f}`"
+                f"### 📈 昨日分時即時行情\n"
+                f"**參考價 (昨收)**: `{ref_price:.2f}`"
             )
 
             if yesterday_df.empty:
@@ -255,28 +245,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                   y0=ref_price,
                   y1=ref_price,
                   line=dict(color="#ffaa00", width=1.5, dash="dash"),
-                  row=1,
-                  col=1,
-              )
-              # 壓力1
-              y_fig.add_shape(
-                  type="line",
-                  x0=yesterday_df.index[0],
-                  x1=yesterday_df.index[-1],
-                  y0=resistance_1,
-                  y1=resistance_1,
-                  line=dict(color="#ff5555", width=1, dash="dot"),
-                  row=1,
-                  col=1,
-              )
-              # 支撐1
-              y_fig.add_shape(
-                  type="line",
-                  x0=yesterday_df.index[0],
-                  x1=yesterday_df.index[-1],
-                  y0=support_1,
-                  y1=support_1,
-                  line=dict(color="#55ff55", width=1, dash="dot"),
                   row=1,
                   col=1,
               )
@@ -355,9 +323,9 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
-              y_min = min(yesterday_df["Close"].min(), support_1)
-              y_max = max(yesterday_df["Close"].max(), resistance_1)
-              padding = (y_max - y_min) * 0.05
+              y_min = yesterday_df["Close"].min()
+              y_max = yesterday_df["Close"].max()
+              padding = (y_max - y_min) * 0.05 if y_max != y_min else 1.0
 
               y_fig.update_yaxes(
                   range=[y_min - padding, y_max + padding],
