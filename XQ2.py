@@ -16,7 +16,7 @@ st.write(
 col1, col2 = st.columns([2, 1])
 with col1:
   stock_id = st.text_input(
-      "請輸入台股代號 (例如：2330、2340)：", value="2330"
+      "請輸入台股代號 (例如：2330、2340、1815)：", value="1815"
   )
 with col2:
   period_options = ["1日", "3日", "5日", "10日", "20日", "60日"]
@@ -137,35 +137,42 @@ if st.button("開始 AI 深度分析", type="primary"):
         else:
           shares_outstanding = stock.info.get("sharesOutstanding")
 
-          # 取得最近 5 天的 1 分鐘高頻資料，擷取昨天分時行情
-          intraday_5d = stock.history(period="5d", interval="1m")
-
-          if not intraday_5d.empty:
-            available_dates = intraday_5d.index.normalize().unique()
-            if len(available_dates) >= 2:
-              target_date = available_dates[-2]
-              yesterday_df = intraday_5d[
-                  intraday_5d.index.normalize() == target_date
-              ]
-            else:
-              yesterday_df = intraday_5d
-          else:
-            yesterday_df = pd.DataFrame()
-
-          # 參考價設定為昨日收盤價
-          if len(hist) >= 2:
-            ref_price = hist["Close"].iloc[-2]
-          else:
-            ref_price = hist["Close"].iloc[-1]
-
-          # 計算技術指標
+          # 1. 計算技術指標
           hist = calculate_technical_indicators(hist, shares_outstanding)
           display_hist = hist.tail(n_days).copy()
+
+          # 2. 嚴格對齊：以日K線最後一個交易日作為「目標分析日」，往前抓取分時資料
+          if len(hist) >= 2:
+            target_date = hist.index[-1].strftime("%Y-%m-%d")
+            ref_price = hist["Close"].iloc[-2]  # 參考價為前一日收盤價
+          else:
+            target_date = hist.index[-1].strftime("%Y-%m-%d")
+            ref_price = hist["Close"].iloc[-1]
+
+          # 利用 yfinance 抓取涵蓋該日的高頻分時資料
+          intraday_data = stock.history(period="7d", interval="1m")
+
+          if not intraday_data.empty:
+            # 過濾出剛好等於目標日期的分時資料
+            intraday_data.index = pd.to_datetime(intraday_data.index)
+            yesterday_df = intraday_data[
+                intraday_data.index.strftime("%Y-%m-%d") == target_date
+            ]
+            # 如果剛好當天沒有分時（例如剛收盤還沒更新），則取最後一個有資料的交易日
+            if yesterday_df.empty:
+              available_dates = intraday_data.index.normalize().unique()
+              if len(available_dates) >= 1:
+                target_date = available_dates[-1].strftime("%Y-%m-%d")
+                yesterday_df = intraday_data[
+                    intraday_data.index.strftime("%Y-%m-%d") == target_date
+                ]
+          else:
+            yesterday_df = pd.DataFrame()
 
           if display_hist.empty:
             st.warning("選定的區間內沒有足夠的交易資料。")
           else:
-            # 統一數值來源：若昨日分時資料存在，最新收盤價強制對齊分時圖最後一筆價位
+            # 3. 強制統一數值：優先以日K最後一筆收盤價（或分時最後一筆）為準
             if not yesterday_df.empty:
               latest_close = yesterday_df["Close"].iloc[-1]
               price_diff = (
@@ -174,8 +181,8 @@ if st.button("開始 AI 深度分析", type="primary"):
                   else 0.0
               )
             else:
-              latest_close = display_hist["Close"].iloc[-1]
-              price_diff = display_hist["Close"].diff().iloc[-1]
+              latest_close = hist["Close"].iloc[-1]
+              price_diff = hist["Close"].diff().iloc[-1]
 
             latest_turnover = display_hist["週轉率(%)"].iloc[-1]
             latest_rsi = display_hist["RSI"].iloc[-1]
@@ -212,14 +219,14 @@ if st.button("開始 AI 深度分析", type="primary"):
               st.warning(f"**📈 中期趨勢規劃**\n\n{mid_p}")
             st.markdown("---")
 
-            # --- 1. 分時行情走勢圖（參考價、紅綠填色、成交量） ---
+            # --- 1. 分時行情走勢圖（對齊目標交易日） ---
             st.markdown(
-                f"### 📈 昨日分時即時行情\n"
-                f"**參考價 (昨收)**: `{ref_price:.2f}` | **分時收盤價**: `{latest_close:.2f}`"
+                f"### 📈 分時即時行情（日期: {target_date}）\n"
+                f"**參考價 (基準)**: `{ref_price:.2f}` | **分時收盤價**: `{latest_close:.2f}`"
             )
 
             if yesterday_df.empty:
-              st.info("目前無法取得昨日分時資料。")
+              st.info(f"目前無法取得 {target_date} 的分時高頻資料。")
             else:
               yesterday_df["Intraday_Volume_Lot"] = yesterday_df["Volume"] / 1000.0
               y_colors = [
@@ -227,7 +234,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                   for _, r in yesterday_df.iterrows()
               ]
 
-              # 計算分時均線 (VWAP)
               vwap = (
                   yesterday_df["Close"] * yesterday_df["Volume"]
               ).cumsum() / yesterday_df["Volume"].cumsum()
@@ -240,7 +246,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                   row_heights=[0.75, 0.25],
               )
 
-              # 參考價基準線 (橘色虛線)
               y_fig.add_shape(
                   type="line",
                   x0=yesterday_df.index[0],
@@ -252,7 +257,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
-              # 分時股價藍線
               y_fig.add_trace(
                   go.Scatter(
                       x=yesterday_df.index,
@@ -265,7 +269,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
-              # 白色均線 (VWAP)
               y_fig.add_trace(
                   go.Scatter(
                       x=yesterday_df.index,
@@ -278,7 +281,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
-              # 參考價以上填紅色陰影
               y_fig.add_trace(
                   go.Scatter(
                       x=yesterday_df.index,
@@ -296,7 +298,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
-              # 參考價以下填綠色陰影
               y_fig.add_trace(
                   go.Scatter(
                       x=yesterday_df.index,
@@ -314,7 +315,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
-              # 分時成交量柱狀圖
               y_fig.add_trace(
                   go.Bar(
                       x=yesterday_df.index,
