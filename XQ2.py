@@ -10,7 +10,7 @@ st.set_page_config(page_title="台股智慧技術分析與週轉率系統", layo
 
 st.title("📊 台股智慧技術分析與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動繪製清晰起伏的昨日分時走勢圖（含平盤線與成交量）、K線圖、布林通道、KD、RSI、週轉率與 AI 策略建議。"
+    "輸入台股代號，自動繪製以均價為中心的昨日分時走勢圖（紅綠區間與成交量）、K線圖、布林通道、KD、RSI、週轉率與 AI 策略建議。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -217,8 +217,8 @@ if st.button("開始 AI 深度分析", type="primary"):
               st.warning(f"**📈 中期趨勢規劃**\n\n{mid_p}")
             st.markdown("---")
 
-            # --- 1. 昨日分時行情走勢圖（含平盤線與成交量，起伏明顯） ---
-            st.subheader("📈 昨日分時行情走勢圖（含平盤參考線與成交量）")
+            # --- 1. 昨日分時行情走勢圖（均價中心線、紅綠區間填色、成交量） ---
+            st.subheader("📈 昨日分時行情走勢圖（均價中心線與紅綠區間）")
             if yesterday_df.empty:
               st.info("目前無法取得昨日分時資料。")
             else:
@@ -228,8 +228,16 @@ if st.button("開始 AI 深度分析", type="primary"):
                   for _, r in yesterday_df.iterrows()
               ]
 
-              # 計算平盤價（以昨日第一筆資料或開盤價作為基準，或抓取歷史前一日收盤）
-              prev_close = yesterday_df["Close"].iloc[0]
+              # 計算當日成交均價 (VWAP 概念：總成交金額 / 總成交股數)
+              total_value = (
+                  yesterday_df["Close"] * yesterday_df["Volume"]
+              ).sum()
+              total_vol = yesterday_df["Volume"].sum()
+              vwap = (
+                  total_value / total_vol
+                  if total_vol > 0
+                  else yesterday_df["Close"].mean()
+              )
 
               y_fig = make_subplots(
                   rows=2,
@@ -238,7 +246,7 @@ if st.button("開始 AI 深度分析", type="primary"):
                   vertical_spacing=0.03,
                   row_heights=[0.75, 0.25],
                   subplot_titles=(
-                      "昨日分時走勢圖 (Price)",
+                      f"昨日分時走勢圖 (均價基準: {vwap:.2f} 元)",
                       "昨日分時成交量 (張)",
                   ),
               )
@@ -250,20 +258,50 @@ if st.button("開始 AI 深度分析", type="primary"):
                       y=yesterday_df["Close"],
                       mode="lines",
                       name="分時股價",
-                      line=dict(color="#0066ff", width=2),
+                      line=dict(color="#1f77b4", width=2),
                   ),
                   row=1,
                   col=1,
               )
 
-              # 加入平盤參考線 (灰色虛線)
+              # 加入均價基準線 (橘色虛線)
               y_fig.add_shape(
                   type="line",
                   x0=yesterday_df.index[0],
                   x1=yesterday_df.index[-1],
-                  y0=prev_close,
-                  y1=prev_close,
-                  line=dict(color="gray", width=1, dash="dash"),
+                  y0=vwap,
+                  y1=vwap,
+                  line=dict(color="orange", width=1.5, dash="dash"),
+                  row=1,
+                  col=1,
+              )
+
+              # 均價以上填紅色，均價以下填綠色
+              y_fig.add_trace(
+                  go.Scatter(
+                      x=yesterday_df.index,
+                      y=yesterday_df["Close"],
+                      fill="tozeroy",
+                      fillgradient=dict(
+                          type="vertical",
+                          colorscale=[
+                              (
+                                  0,
+                                  "rgba(0, 180, 0, 0.15)",
+                              ),  # 均價以下綠色
+                              (
+                                  0.5,
+                                  "rgba(200, 200, 200, 0.05)",
+                              ),
+                              (
+                                  1,
+                                  "rgba(255, 0, 0, 0.15)",
+                              ),  # 均價以上紅色
+                          ],
+                      ),
+                      mode="none",
+                      showlegend=False,
+                  ),
                   row=1,
                   col=1,
               )
@@ -280,7 +318,7 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
-              # 自動縮放 Y 軸，讓股價起伏變得非常顯著（類似看盤軟體）
+              # 自動縮放 Y 軸讓起伏明顯
               y_min = yesterday_df["Close"].min()
               y_max = yesterday_df["Close"].max()
               padding = (y_max - y_min) * 0.1 if y_max != y_min else 1.0
