@@ -1,6 +1,9 @@
 import pandas as pd
 import yfinance as yf
-
+if df is None or df.empty:
+  st.warning("目前無法取得該股票的資料，請確認代號是否正確。")
+else:
+  # 正常的渲染邏輯
 
 def calculate_turnover_rate(stock_id: str, period: str = "3mo"):
   """計算台股指定個股的每日週轉率
