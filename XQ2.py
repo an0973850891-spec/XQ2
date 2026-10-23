@@ -57,9 +57,9 @@ stock_name_map = {
 
 
 def get_finmind_institutional_investors(stock_id, token=""):
-  """透過 FinMind API 取得三大法人買賣超資料"""
+  """透過 FinMind API 取得三大法人買賣超資料（將查詢區間拉長至 90 天以確保抓取最新可用資料）"""
   try:
-    start_date = (pd.Timestamp.today() - pd.Timedelta(days=30)).strftime(
+    start_date = (pd.Timestamp.today() - pd.Timedelta(days=90)).strftime(
         "%Y-%m-%d"
     )
     url = f"https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestors&data_id={stock_id}&start_date={start_date}"
@@ -69,17 +69,19 @@ def get_finmind_institutional_investors(stock_id, token=""):
     response = requests.get(url, timeout=10)
     data = response.json()
 
-    # 檢查 API 回傳狀態
     if data.get("status") != 200:
-      print(f"FinMind API 訊息: {data.get('msg')}")
       return pd.DataFrame()
 
     if "data" in data and len(data["data"]) > 0:
       df = pd.DataFrame(data["data"])
       df["net"] = (df["buy"] - df["sell"]) / 1000.0  # 轉為張
+      df["date"] = pd.to_datetime(df["date"])
+      df = df.sort_values("date")
+
       pivot_df = df.pivot(
           index="date", columns="name", values="net"
       ).fillna(0)
+      pivot_df.index = pivot_df.index.strftime("%Y-%m-%d")
       return pivot_df
   except Exception as e:
     print(f"FinMind 連線例外錯誤: {e}")
@@ -244,7 +246,7 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
               st.dataframe(recent_inst, use_container_width=True)
             else:
               st.info(
-                  "ℹ️ 提示：目前該代號在 FinMind 查詢區間內無三大法人買賣超紀錄（可能為當日無外資/投信/自營商進出，或資料尚未結算）。"
+                  "ℹ️ 提示：目前該代號在查詢區間內無三大法人買賣超紀錄（可能為當日無外資/投信/自營商進出，或資料尚未結算）。"
               )
 
             st.markdown("---")
