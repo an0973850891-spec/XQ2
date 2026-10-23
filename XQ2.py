@@ -98,7 +98,7 @@ def generate_ai_analysis(display_hist, latest_turnover):
     buy_advice = f"回測 **{support_line}** 支撐不破且量縮時可視為低接點。"
     sell_advice = f"若接近 **{resistance_line}** 或量大不漲時可分批逢高獲利結利。"
   else:
-    support_line = f"布林下軌 (约 {lower:.2f} 元)"
+    support_line = f"布林下軌 (約 {lower:.2f} 元)"
     resistance_line = f"月線 (約 {ma20:.2f} 元)"
     buy_advice = "目前處於弱勢整理，建議靜待帶量突破月線或至下軌尋求支撐再行佈局。"
     sell_advice = "反彈至月線附近若遇壓無法站穩，應以減碼或防守為主。"
@@ -221,9 +221,8 @@ if st.button("開始 AI 深度分析", type="primary"):
 
             # --- 1. 擬真三關價分時走勢圖（暗色系、三關價壓力支撐、紅綠填色） ---
             st.markdown(
-                f"### 📈 三關價即時行情[cite: 4]\n"
+                f"### 📈 三關價即時行情\n"
                 f"**壓力2**: `{resistance_2:.3f}` | **壓力1**: `{resistance_1:.3f}` | **參考價**: `{ref_price:.2f}` | **支撐**: `{support_1:.3f}`"
-               [cite: 4]
             )
 
             if yesterday_df.empty:
@@ -315,7 +314,7 @@ if st.button("開始 AI 深度分析", type="primary"):
                       y=yesterday_df["Close"],
                       fill="tozeroy",
                       fillbase=ref_price,
-                      fillcolor="rgba(255, 77, 77, 0.25)",  # 紅色填色
+                      fillcolor="rgba(255, 77, 77, 0.25)",
                       mode="none",
                       showlegend=False,
                   ),
@@ -349,7 +348,7 @@ if st.button("開始 AI 深度分析", type="primary"):
               y_fig.update_layout(
                   height=520,
                   xaxis_rangeslider_visible=False,
-                  template="plotly_dark",  # 採用暗色系背景看盤風格
+                  template="plotly_dark",
                   showlegend=False,
                   margin=dict(l=10, r=50, t=10, b=10),
               )
