@@ -1,3 +1,4 @@
+from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -7,15 +8,14 @@ import streamlit as st
 import yfinance as yf
 
 # 設定網頁標題與排版
-st.set_page_config(page_title="台股智慧技術分析、主力籌碼與 AI 系統", layout="wide")
-
-st.title("📊 台股智慧技術分析、主力籌碼與 AI 策略系統")
-st.write(
-    "輸入台股代號，自動同步呈現中文簡稱、當日主力進出籌碼、分時走勢、參考價基準、紅綠填色與成交量、K線圖與技術指標。"
+st.set_page_config(
+    page_title="台股智慧技術分析、主力進出籌碼與 AI 系統", layout="wide"
 )
 
-# 已自動內建您的 FinMind API Token
-FINMIND_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiYW4wOTczODUwODkxQGdtYWlsLmNvbSIsImVtYWlsIjoiYW4wOTczODUwODkxQGdtYWlsLmNvbSIsInRva2VuX3ZlcnNpb24iOjB9.GqEsz69B2Yc_fuDIEvkesiVa07OH16eDn1GHzgAqV9o"
+st.title("📊 台股智慧技術分析、主力進出籌碼與 AI 系統")
+st.write(
+    "輸入台股代號，自動同步呈現 Yahoo 股市主力進出明細、中文簡稱、分時走勢、參考價基準、紅綠填色與成交量、K線圖與技術指標。"
+)
 
 col1, col2 = st.columns([2, 1])
 with col1:
@@ -56,40 +56,27 @@ stock_name_map = {
 }
 
 
-def get_finmind_institutional_investors(stock_id, token=""):
-  """透過 FinMind API 取得法人與主力籌碼對應資料"""
+def get_yahoo_broker_data(stock_id):
+  """透過抓取 Yahoo 股市的主力進出頁面取得券商買賣超資料"""
   try:
-    start_date = (pd.Timestamp.today() - pd.Timedelta(days=30)).strftime(
-        "%Y-%m-%d"
-    )
-    url = f"https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestors&data_id={stock_id}&start_date={start_date}"
-    if token.strip():
-      url += f"&token={token.strip()}"
+    url = f"https://tw.stock.yahoo.com/quote/{stock_id}/broker"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            " (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+    response = requests.get(url, headers=headers, timeout=10)
+    if response.status_code != 200:
+      return None, None
 
-    response = requests.get(url, timeout=10)
-    data = response.json()
+    tables = pd.read_html(response.text)
+    if not tables:
+      return None, None
 
-    if data.get("status") != 200:
-      return pd.DataFrame()
-
-    if "data" in data and len(data["data"]) > 0:
-      df = pd.DataFrame(data["data"])
-      df["net"] = (df["buy"] - df["sell"]) / 1000.0  # 轉為張
-      df["date"] = pd.to_datetime(df["date"])
-      df = df.sort_values("date")
-
-      pivot_df = df.pivot(
-          index="date", columns="name", values="net"
-      ).fillna(0)
-      # 計算「主力買賣超合計」（外資 + 投信 + 自營商 作為市場主力動向的綜合指標）
-      if not pivot_df.empty:
-        pivot_df["主力合計買賣超"] = pivot_df.sum(axis=1)
-
-      pivot_df.index = pivot_df.index.strftime("%Y-%m-%d")
-      return pivot_df
+    return tables, None
   except Exception as e:
-    print(f"FinMind 連線例外錯誤: {e}")
-  return pd.DataFrame()
+    return None, str(e)
 
 
 def calculate_technical_indicators(df, shares_outstanding):
@@ -129,13 +116,13 @@ def calculate_technical_indicators(df, shares_outstanding):
   return df
 
 
-if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
+if st.button("開始抓取 YAHOO 股市與 AI 深度分析", type="primary"):
   cleaned_id = stock_id.strip()
   if not cleaned_id:
     st.warning("請先輸入有效的股票代號！")
   else:
     with st.spinner(
-        f"正在載入代號 {cleaned_id} 的行情、主力籌碼與技術指標..."
+        f"正在同步 Yahoo 股市代號 {cleaned_id} 的行情、主力進出與技術指標..."
     ):
       try:
         ticker_symbol = f"{cleaned_id}.TW"
@@ -164,10 +151,8 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
           hist = calculate_technical_indicators(hist, shares_outstanding)
           display_hist = hist.tail(n_days).copy()
 
-          # 取得籌碼資料
-          institutional_df = get_finmind_institutional_investors(
-              cleaned_id, FINMIND_TOKEN
-          )
+          # 抓取 Yahoo 股市主力進出表格
+          broker_tables, err = get_yahoo_broker_data(cleaned_id)
 
           if len(hist) >= 2:
             target_date = hist.index[-1].strftime("%Y-%m-%d")
@@ -241,36 +226,18 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
 
-            # --- 當日主力進出籌碼專區 ---
+            # --- YAHOO 股市主力進出專區 ---
             st.markdown("---")
-            st.subheader("🏛️ 當日主力進出與法人動向 (單位：張)")
+            st.subheader("🏛️ YAHOO 股市 - 主力進出與券商買賣超明細")
 
-            if not institutional_df.empty:
-              latest_inst_date = institutional_df.index[-1]
-              latest_inst_row = institutional_df.iloc[-1]
-
-              st.markdown(f"**📅 最新統計日期：`{latest_inst_date}`**")
-
-              inst_cols = st.columns(len(latest_inst_row))
-              for idx, (col_name, val) in enumerate(
-                  latest_inst_row.items()
-              ):
-                with inst_cols[idx]:
-                  color_style = "color: #ff4d4d;" if val > 0 else "color: #2eb82e;" if val < 0 else "color: gray;"
-                  st.markdown(
-                      f"**{col_name}**<br><span style='font-size: 1.2rem; font-weight: bold; {color_style}'>{val:+.2f} 張</span>",
-                      unsafe_allow_html=True,
-                  )
-
-              st.markdown("")
-              with st.expander("查看近期主力與法人進出歷史明細"):
-                st.dataframe(
-                    institutional_df.tail(10).iloc[::-1],
-                    use_container_width=True,
-                )
+            if broker_tables is not None and len(broker_tables) > 0:
+              st.success("✅ 成功從 Yahoo 股市抓取主力進出與券商明細表格！")
+              for idx, table in enumerate(broker_tables[:3]):
+                st.markdown(f"**券商買賣超明細表 {idx+1}**")
+                st.dataframe(table, use_container_width=True)
             else:
               st.info(
-                  "ℹ️ 提示：目前該代號尚無當日主力進出紀錄（可能為尚未結算或當日無進出）。"
+                  "ℹ️ 目前該代號在 Yahoo 股市的主力進出頁面無明細表格或暫時無法連線。"
               )
 
             st.markdown("---")
