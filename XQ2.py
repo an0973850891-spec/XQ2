@@ -601,4 +601,66 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
             )
 
             colors = [
-                "red" if row["Close"] >= row
+                "red" if row["Close"] >= row["Open"] else "green"
+                for _, row in display_hist.iterrows()
+            ]
+            fig.add_trace(
+                go.Bar(
+                    x=display_hist.index,
+                    y=display_hist["成交量(張)"],
+                    name="成交量 (張)",
+                    marker_color=colors,
+                ),
+                row=2,
+                col=1,
+            )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=display_hist.index,
+                    y=display_hist["K"],
+                    line=dict(color="orange", width=1.5),
+                    name="K值",
+                ),
+                row=3,
+                col=1,
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=display_hist.index,
+                    y=display_hist["D"],
+                    line=dict(color="purple", width=1.5),
+                    name="D值",
+                ),
+                row=3,
+                col=1,
+            )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=display_hist.index,
+                    y=display_hist["RSI"],
+                    line=dict(color="magenta", width=1.5),
+                    name="RSI (14)",
+                ),
+                row=4,
+                col=1,
+            )
+
+            fig.update_layout(
+                height=950,
+                xaxis_rangeslider_visible=False,
+                template="plotly_dark",
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1,
+                ),
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+      except Exception as e:
+        st.error(f"程式執行時發生未預期的錯誤：{e}")
