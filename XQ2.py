@@ -307,14 +307,37 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
-              # 參考價以上紅、以下綠區間填色
+              # 參考價以上填紅色陰影
               y_fig.add_trace(
                   go.Scatter(
                       x=yesterday_df.index,
-                      y=yesterday_df["Close"],
+                      y=np.where(
+                          yesterday_df["Close"] >= ref_price,
+                          yesterday_df["Close"],
+                          ref_price,
+                      ),
                       fill="tozeroy",
                       fillbase=ref_price,
                       fillcolor="rgba(255, 77, 77, 0.25)",
+                      mode="none",
+                      showlegend=False,
+                  ),
+                  row=1,
+                  col=1,
+              )
+
+              # 參考價以下填綠色陰影
+              y_fig.add_trace(
+                  go.Scatter(
+                      x=yesterday_df.index,
+                      y=np.where(
+                          yesterday_df["Close"] < ref_price,
+                          yesterday_df["Close"],
+                          ref_price,
+                      ),
+                      fill="tozeroy",
+                      fillbase=ref_price,
+                      fillcolor="rgba(46, 184, 46, 0.25)",
                       mode="none",
                       showlegend=False,
                   ),
