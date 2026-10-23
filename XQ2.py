@@ -7,11 +7,11 @@ import streamlit as st
 import yfinance as yf
 
 # 設定網頁標題與排版
-st.set_page_config(page_title="台股智慧技術分析、籌碼與 AI 系統", layout="wide")
+st.set_page_config(page_title="台股智慧技術分析、主力籌碼與 AI 系統", layout="wide")
 
 st.title("📊 台股智慧技術分析、主力籌碼與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動同步呈現中文簡稱、當日三大法人籌碼、分時走勢、參考價基準、紅綠填色與成交量、K線圖與技術指標。"
+    "輸入台股代號，自動同步呈現中文簡稱、當日主力進出籌碼、分時走勢、參考價基準、紅綠填色與成交量、K線圖與技術指標。"
 )
 
 # 已自動內建您的 FinMind API Token
@@ -57,9 +57,8 @@ stock_name_map = {
 
 
 def get_finmind_institutional_investors(stock_id, token=""):
-  """透過 FinMind API 取得三大法人買賣超資料"""
+  """透過 FinMind API 取得法人與主力籌碼對應資料"""
   try:
-    # 抓取最近 30 天以確保涵蓋完整的最新交易日
     start_date = (pd.Timestamp.today() - pd.Timedelta(days=30)).strftime(
         "%Y-%m-%d"
     )
@@ -82,6 +81,10 @@ def get_finmind_institutional_investors(stock_id, token=""):
       pivot_df = df.pivot(
           index="date", columns="name", values="net"
       ).fillna(0)
+      # 計算「主力買賣超合計」（外資 + 投信 + 自營商 作為市場主力動向的綜合指標）
+      if not pivot_df.empty:
+        pivot_df["主力合計買賣超"] = pivot_df.sum(axis=1)
+
       pivot_df.index = pivot_df.index.strftime("%Y-%m-%d")
       return pivot_df
   except Exception as e:
@@ -132,7 +135,7 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
     st.warning("請先輸入有效的股票代號！")
   else:
     with st.spinner(
-        f"正在載入代號 {cleaned_id} 的行情、法人籌碼與技術指標..."
+        f"正在載入代號 {cleaned_id} 的行情、主力籌碼與技術指標..."
     ):
       try:
         ticker_symbol = f"{cleaned_id}.TW"
@@ -161,7 +164,7 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
           hist = calculate_technical_indicators(hist, shares_outstanding)
           display_hist = hist.tail(n_days).copy()
 
-          # 取得三大法人籌碼
+          # 取得籌碼資料
           institutional_df = get_finmind_institutional_investors(
               cleaned_id, FINMIND_TOKEN
           )
@@ -238,18 +241,16 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
 
-            # --- 當日三大法人買賣超籌碼專區 ---
+            # --- 當日主力進出籌碼專區 ---
             st.markdown("---")
-            st.subheader("🏛️ 當日三大法人買賣超籌碼 (單位：張)")
+            st.subheader("🏛️ 當日主力進出與法人動向 (單位：張)")
 
             if not institutional_df.empty:
-              # 取得最新一個交易日的法人資料
               latest_inst_date = institutional_df.index[-1]
               latest_inst_row = institutional_df.iloc[-1]
 
               st.markdown(f"**📅 最新統計日期：`{latest_inst_date}`**")
 
-              # 用 4 個欄位分別展示當日外資、投信、自營商及合計
               inst_cols = st.columns(len(latest_inst_row))
               for idx, (col_name, val) in enumerate(
                   latest_inst_row.items()
@@ -262,11 +263,14 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
                   )
 
               st.markdown("")
-              with st.expander("查看近期法人買賣超歷史明細"):
-                st.dataframe(institutional_df.tail(10).iloc[::-1], use_container_width=True)
+              with st.expander("查看近期主力與法人進出歷史明細"):
+                st.dataframe(
+                    institutional_df.tail(10).iloc[::-1],
+                    use_container_width=True,
+                )
             else:
               st.info(
-                  "ℹ️ 提示：目前該代號尚無當日三大法人買賣超紀錄（可能為尚未結算或當日無進出）。"
+                  "ℹ️ 提示：目前該代號尚無當日主力進出紀錄（可能為尚未結算或當日無進出）。"
               )
 
             st.markdown("---")
