@@ -208,7 +208,7 @@ if st.button("開始 AI 深度分析", type="primary"):
             st.line_chart(display_hist["Close"], use_container_width=True)
             st.markdown("---")
 
-            # --- 2. 專業多技術指標圖表 (K線、成交量、KD、RSI) ---
+            # --- 2. 專業多技術指標圖表 (K線圖、成交量、KD、RSI) ---
             fig = make_subplots(
                 rows=4,
                 cols=1,
@@ -319,4 +319,70 @@ if st.button("開始 AI 深度分析", type="primary"):
                 col=1,
             )
 
-            # 加入 RSI 超買超賣參考線 (
+            # 加入 RSI 超買超賣參考線 (70 / 30)
+            fig.add_shape(
+                type="line",
+                x0=display_hist.index[0],
+                x1=display_hist.index[-1],
+                y0=70,
+                y1=70,
+                line=dict(color="red", dash="dash"),
+                row=4,
+                col=1,
+            )
+            fig.add_shape(
+                type="line",
+                x0=display_hist.index[0],
+                x1=display_hist.index[-1],
+                y0=30,
+                y1=30,
+                line=dict(color="green", dash="dash"),
+                row=4,
+                col=1,
+            )
+
+            # 版面佈局微調
+            fig.update_layout(
+                height=950,
+                xaxis_rangeslider_visible=False,
+                template="plotly_white",
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1,
+                ),
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # 建立詳細數據表格 (最新日期在最上方)
+            table_df = display_hist[[
+                "Close",
+                "成交量(張)",
+                "週轉率(%)",
+                "K",
+                "D",
+                "RSI",
+                "布林上軌",
+                "布林下軌",
+            ]].copy()
+            
+            table_df.columns = [
+                "收盤價",
+                "成交量(張)",
+                "週轉率(%)",
+                "K值",
+                "D值",
+                "RSI(14)",
+                "布林上軌",
+                "布林下軌",
+            ]
+            table_df = table_df.iloc[::-1]
+
+            st.subheader("📋 近期詳細技術指標與成交量數據（最新日期在最上方）")
+            st.dataframe(table_df, use_container_width=True)
+
+      except Exception as e:
+        st.error(f"程式執行時發生未預期的錯誤：{e}")
