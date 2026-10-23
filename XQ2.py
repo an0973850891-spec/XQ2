@@ -22,7 +22,7 @@ FINMIND_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiYW4wOTczOD
 col1, col2 = st.columns([2, 1])
 with col1:
   stock_id = st.text_input(
-      "請輸入台股代號 (例如：2330、2340、1815)：", value="1815"
+      "請輸入台股代號 (例如：2330、2340、1815、5351)：", value="5351"
   )
 with col2:
   period_options = ["1日", "3日", "5日", "10日", "20日", "60日"]
@@ -38,19 +38,28 @@ period_days_map = {
 }
 n_days = period_days_map[selected_period]
 
-# 常見台股代號對應中文簡稱字典
+# 擴充上市櫃常見熱門股票對應中文簡稱字典
 stock_name_map = {
     "1815": "富喬",
     "2330": "台積電",
     "2317": "鴻海",
     "2454": "聯發科",
     "2308": "台達電",
+    "2340": "台亞",
     "2881": "富邦金",
     "2882": "國泰金",
     "2891": "中信金",
     "2603": "長榮",
     "2609": "陽明",
     "2615": "萬海",
+    "5351": "鈺創",
+    "3105": "穩懋",
+    "3260": "威剛",
+    "5483": "中美晶",
+    "8299": "群聯",
+    "6182": "合晶",
+    "3481": "群創",
+    "2409": "友達",
     "0050": "元大台灣50",
     "0056": "元大高股息",
     "00878": "國泰永續高股息",
@@ -226,7 +235,6 @@ def generate_day_trading_rules(yesterday_df, ref_price):
     )
     bullish_score -= 1
 
-  # 多空訊號燈判定
   if bullish_score >= 2:
     signal_light = "🔴 **強勢多方燈 (Bullish)**：多頭排列，盤勢強勢，可偏多順勢操作"
   elif bullish_score <= -2:
@@ -271,10 +279,17 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
           )
         else:
           info = stock.info
+          # 智慧中文名稱對應：優先從字典抓取，若無則嘗試從 info 取得並清理英文贅字
+          raw_name = (
+              info.get("longName") or info.get("shortName") or cleaned_id
+          )
           stock_name = stock_name_map.get(
               cleaned_id,
-              info.get("longName") or info.get("shortName") or cleaned_id,
+              raw_name.replace(", Inc.", "")
+              .replace(" Co., Ltd.", "")
+              .replace(" Corporation", ""),
           )
+
           shares_outstanding = info.get("sharesOutstanding")
 
           # 計算技術指標
@@ -366,7 +381,6 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
                 yesterday_df, ref_price
             )
 
-            # 顯示多空訊號燈狀態框
             if "強勢多方燈" in signal_light:
               st.success(f"### 🚦 多空訊號燈：{signal_light}")
             elif "弱勢空方燈" in signal_light:
