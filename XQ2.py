@@ -68,6 +68,12 @@ def get_finmind_institutional_investors(stock_id, token=""):
 
     response = requests.get(url, timeout=10)
     data = response.json()
+
+    # 檢查 API 回傳狀態
+    if data.get("status") != 200:
+      print(f"FinMind API 訊息: {data.get('msg')}")
+      return pd.DataFrame()
+
     if "data" in data and len(data["data"]) > 0:
       df = pd.DataFrame(data["data"])
       df["net"] = (df["buy"] - df["sell"]) / 1000.0  # 轉為張
@@ -76,7 +82,7 @@ def get_finmind_institutional_investors(stock_id, token=""):
       ).fillna(0)
       return pivot_df
   except Exception as e:
-    print(f"FinMind 讀取錯誤: {e}")
+    print(f"FinMind 連線例外錯誤: {e}")
   return pd.DataFrame()
 
 
@@ -152,7 +158,7 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
           hist = calculate_technical_indicators(hist, shares_outstanding)
           display_hist = hist.tail(n_days).copy()
 
-          # 取得三大法人籌碼（自動帶入內建 Token）
+          # 取得三大法人籌碼
           institutional_df = get_finmind_institutional_investors(
               cleaned_id, FINMIND_TOKEN
           )
@@ -237,8 +243,8 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
               recent_inst = institutional_df.tail(5).iloc[::-1]
               st.dataframe(recent_inst, use_container_width=True)
             else:
-              st.warning(
-                  "⚠️ 目前無法取得三大法人買賣超資料（可能該檔股票當日無法人進出或為興櫃股票）。"
+              st.info(
+                  "ℹ️ 提示：目前該代號在 FinMind 查詢區間內無三大法人買賣超紀錄（可能為當日無外資/投信/自營商進出，或資料尚未結算）。"
               )
 
             st.markdown("---")
