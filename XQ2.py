@@ -13,7 +13,7 @@ st.set_page_config(
 
 st.title("📊 台股智慧技術分析、當沖法則、主力籌碼與 AI 系統")
 st.write(
-    "輸入台股代號，自動同步呈現當沖實戰法則、AI 策略建議、主力進出籌碼、中文簡稱、分時走勢、K線圖與技術指標。"
+    "輸入台股代號，自動同步呈現多空訊號燈、當沖實戰法則、AI 策略建議、主力進出籌碼、中文簡稱、分時走勢、K線圖與技術指標。"
 )
 
 # 已內建您的 FinMind API Token
@@ -181,9 +181,13 @@ def generate_ai_analysis(display_hist, latest_turnover):
 
 
 def generate_day_trading_rules(yesterday_df, ref_price):
-  """當沖實戰法則與多空研判邏輯"""
+  """當沖實戰法則與多空訊號燈研判邏輯"""
   if yesterday_df.empty or len(yesterday_df) < 5:
-    return ["資料不足，無法產生當沖指標。"], "請於開盤或盤中時段查詢即時分時資料。"
+    return (
+        ["資料不足，無法產生當沖指標。"],
+        "請於開盤或盤中時段查詢即時分時資料。",
+        "⚪ 中性觀望燈",
+    )
 
   latest_price = yesterday_df["Close"].iloc[-1]
   vwap = (
@@ -192,29 +196,45 @@ def generate_day_trading_rules(yesterday_df, ref_price):
   latest_vwap = vwap.iloc[-1]
 
   rules = []
+  bullish_score = 0
+
   if latest_price >= latest_vwap:
     rules.append(
         "🟢 **VWAP 均價線多方戰法**：現價 (**"
         f"{latest_price:.2f}**) 位於成交均價線 (**{latest_vwap:.2f}**) 之上，"
         "盤勢偏多。拉回至 VWAP 附近若量縮有守，可偏多試單。"
     )
+    bullish_score += 1
   else:
     rules.append(
         "🔴 **VWAP 均價線空方戰法**：現價 (**"
         f"{latest_price:.2f}**) 位於成交均價線 (**{latest_vwap:.2f}**) 之下，"
         "盤勢偏弱。反彈至 VWAP 遇壓無力時，可留意空方試單機會。"
     )
+    bullish_score -= 1
 
   if latest_price >= ref_price:
     rules.append(
         "📈 **參考價防守原則**：現價高於昨收參考價 (`"
         f"{ref_price:.2f}`)，多方氣勢較強，可觀察早盤高點是否帶量突破。"
     )
+    bullish_score += 1
   else:
     rules.append(
         "📉 **參考價防守原則**：現價低於昨收參考價 (`"
         f"{ref_price:.2f}`)，空方掌控節奏，慎防賣壓殺低或測底行情。"
     )
+    bullish_score -= 1
+
+  # 多空訊號燈判定
+  if bullish_score >= 2:
+    signal_light = "🔴 **強勢多方燈 (Bullish)**：多頭排列，盤勢強勢，可偏多順勢操作"
+  elif bullish_score <= -2:
+    signal_light = (
+        "🟢 **弱勢空方燈 (Bearish)**：空方主導，賣壓沈重，慎防追價或偏空應對"
+    )
+  else:
+    signal_light = "🟡 **多空膠著燈 (Neutral)**：多空拉鋸震盪，建議觀望或採區間高出低進"
 
   risk_mgmt = (
       "⚠️ **當沖嚴格紀律與風控**：\n"
@@ -223,7 +243,7 @@ def generate_day_trading_rules(yesterday_df, ref_price):
       "3. **量價配合**：若急拉無量或急殺帶量破底，應順勢操作、切勿逆勢攤平。"
   )
 
-  return rules, risk_mgmt
+  return rules, risk_mgmt, signal_light
 
 
 if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
@@ -338,16 +358,25 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
 
-            # --- ⚡ 當沖實戰法則與多空研判專區 ---
+            # --- ⚡ 當沖實戰法則與多空訊號燈專區 ---
             st.markdown("---")
             st.subheader("⚡ 當沖實戰法則與盤中多空研判")
 
-            day_rules, day_risk = generate_day_trading_rules(
+            day_rules, day_risk, signal_light = generate_day_trading_rules(
                 yesterday_df, ref_price
             )
+
+            # 顯示多空訊號燈狀態框
+            if "強勢多方燈" in signal_light:
+              st.success(f"### 🚦 多空訊號燈：{signal_light}")
+            elif "弱勢空方燈" in signal_light:
+              st.error(f"### 🚦 多空訊號燈：{signal_light}")
+            else:
+              st.warning(f"### 🚦 多空訊號燈：{signal_light}")
+
             d_col1, d_col2 = st.columns(2)
             with d_col1:
-              st.success(
+              st.info(
                   "**🎯 當沖多空核心戰法**\n\n"
                   + "\n\n".join([f"* {r}" for r in day_rules])
               )
