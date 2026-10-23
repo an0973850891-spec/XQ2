@@ -2,15 +2,16 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import requests
 import streamlit as st
 import yfinance as yf
 
 # 設定網頁標題與排版
 st.set_page_config(page_title="台股智慧技術分析與 AI 系統", layout="wide")
 
-st.title("📊 台股智慧技術分析與 AI 策略系統")
+st.title("📊 台股智慧技術分析、主力籌碼與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動同步呈現中文簡稱、分時走勢、參考價基準、紅綠填色與成交量、K線圖、技術指標與 AI 策略建議。"
+    "輸入台股代號，自動同步呈現中文簡稱、主力買賣超籌碼、分時走勢、參考價基準、紅綠填色與成交量、K線圖與技術指標。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -34,7 +35,7 @@ period_days_map = {
 }
 n_days = period_days_map[selected_period]
 
-# 常見台股代號對應中文簡稱字典（可自行擴充）
+# 常見台股代號對應中文簡稱字典
 stock_name_map = {
     "1815": "富喬",
     "2330": "台積電",
@@ -52,6 +53,25 @@ stock_name_map = {
     "00878": "國泰永續高股息",
     "00919": "群益台灣精選高息",
 }
+
+
+def get_finmind_institutional_investors(stock_id):
+  """透過 FinMind API 取得三大法人買賣超資料"""
+  try:
+    url = f"https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestors&data_id={stock_id}&start_date={(pd.Timestamp.today() - pd.Timedelta(days=30)).strftime('%Y-%m-%d')}"
+    response = requests.get(url)
+    data = response.json()
+    if "data" in data and len(data["data"]) > 0:
+      df = pd.DataFrame(data["data"])
+      # 轉換格式：將買賣超張數轉成以張為單位 (原始通常為股)
+      df["net"] = (df["buy"] - df["sell"]) / 1000.0
+      pivot_df = df.pivot(
+          index="date", columns="name", values="net"
+      ).fillna(0)
+      return pivot_df
+  except Exception:
+    pass
+  return pd.DataFrame()
 
 
 def calculate_technical_indicators(df, shares_outstanding):
@@ -91,54 +111,14 @@ def calculate_technical_indicators(df, shares_outstanding):
   return df
 
 
-def generate_ai_analysis(display_hist, latest_turnover):
-  latest = display_hist.iloc[-1]
-  close = latest["Close"]
-  ma20 = latest["MA20"]
-  rsi = latest["RSI"]
-  k = latest["K"]
-  d = latest["D"]
-  upper = latest["布林上軌"]
-  lower = latest["布林下軌"]
-
-  if rsi > 70 or k > 80 or close >= upper:
-    warning_light = "🔴 紅燈：高檔過熱警示"
-    status_msg = "短線乖離過大，技術指標進入超買區，慎防技術性回檔。"
-  elif rsi < 30 or k < 20 or close <= lower:
-    warning_light = "🟡 黃燈 / 藍燈：超跌尋底區"
-    status_msg = "股價觸及下軌或超賣，可觀察是否有量縮止跌或買盤承接契機。"
-  else:
-    warning_light = "🟢 綠燈：多空震盪穩定"
-    status_msg = "技術指標與均線結構處於合理常態區間，依趨勢穩健操作。"
-
-  if close > ma20:
-    support_line = f"月線 (約 {ma20:.2f} 元) 或布林中軌附近"
-    resistance_line = f"布林上軌 (約 {upper:.2f} 元)"
-    buy_advice = f"回測 **{support_line}** 支撐不破且量縮時可視為低接點。"
-    sell_advice = f"若接近 **{resistance_line}** 或量大不漲時可分批逢高獲利結利。"
-  else:
-    support_line = f"布林下軌 (約 {lower:.2f} 元)"
-    resistance_line = f"月線 (約 {ma20:.2f} 元)"
-    buy_advice = "目前處於弱勢整理，建議靜待帶量突破月線或至下軌尋求支撐再行佈局。"
-    sell_advice = "反彈至月線附近若遇壓無法站穩，應以減碼或防守為主。"
-
-  short_term = (
-      "短線觀察 5 日內量能變化與 KD 是否黃金交叉；若單日週轉率放大超過"
-      f" 5%，須留意資金競價激烈程度。"
-  )
-  medium_term = (
-      "中期重點在於 MA20（月線）之得失，站穩月線方能延續多頭格局，若跌破則需拉長觀察期或嚴設停損。"
-  )
-
-  return warning_light, status_msg, buy_advice, sell_advice, short_term, medium_term
-
-
-if st.button("開始 AI 深度分析", type="primary"):
+if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
   cleaned_id = stock_id.strip()
   if not cleaned_id:
     st.warning("請先輸入有效的股票代號！")
   else:
-    with st.spinner(f"正在載入代號 {cleaned_id} 的資料與公司名稱..."):
+    with st.spinner(
+        f"正在載入代號 {cleaned_id} 的行情、法人籌碼與技術指標..."
+    ):
       try:
         ticker_symbol = f"{cleaned_id}.TW"
         stock = yf.Ticker(ticker_symbol)
@@ -155,7 +135,6 @@ if st.button("開始 AI 深度分析", type="primary"):
               " 的資料，請確認代號是否正確（支援上市及上櫃股票）。"
           )
         else:
-          # 取得公司名稱：優先從內建字典抓取中文簡稱，若無則抓取 Yahoo 英文名稱
           info = stock.info
           stock_name = stock_name_map.get(
               cleaned_id,
@@ -163,15 +142,17 @@ if st.button("開始 AI 深度分析", type="primary"):
           )
           shares_outstanding = info.get("sharesOutstanding")
 
-          # 1. 計算技術指標
+          # 計算技術指標
           hist = calculate_technical_indicators(hist, shares_outstanding)
           display_hist = hist.tail(n_days).copy()
 
-          # 2. 嚴格對齊：以日K線最後一個交易日作為「目標分析日」
+          # 取得三大法人籌碼
+          institutional_df = get_finmind_institutional_investors(cleaned_id)
+
           if len(hist) >= 2:
             target_date = hist.index[-1].strftime("%Y-%m-%d")
-            ref_price = hist["Close"].iloc[-2]  # 參考價為前一日收盤價
-            latest_close = hist["Close"].iloc[-1]  # 強制對齊日K最後正規收盤價
+            ref_price = hist["Close"].iloc[-2]
+            latest_close = hist["Close"].iloc[-1]
             price_diff = hist["Close"].iloc[-1] - hist["Close"].iloc[-2]
           else:
             target_date = hist.index[-1].strftime("%Y-%m-%d")
@@ -179,9 +160,7 @@ if st.button("開始 AI 深度分析", type="primary"):
             latest_close = hist["Close"].iloc[-1]
             price_diff = 0.0
 
-          # 利用 yfinance 抓取涵蓋該日的高頻分時資料
           intraday_data = stock.history(period="7d", interval="1m")
-
           if not intraday_data.empty:
             intraday_data.index = pd.to_datetime(intraday_data.index)
             yesterday_df = intraday_data[
@@ -210,7 +189,6 @@ if st.button("開始 AI 深度分析", type="primary"):
             latest_k = display_hist["K"].iloc[-1]
             latest_d = display_hist["D"].iloc[-1]
 
-            # 顯示代號與中文簡稱
             st.subheader(f"📌 分析標的：{cleaned_id} 【{stock_name}】")
 
             m1, m2, m3, m4 = st.columns(4)
@@ -243,31 +221,22 @@ if st.button("開始 AI 深度分析", type="primary"):
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
 
-            # --- AI 智慧分析專區 ---
+            # --- 主力與三大法人買賣超專區 ---
             st.markdown("---")
-            st.subheader("🤖 AI 智慧走勢研判與策略建議")
+            st.subheader("🏛️ 三大法人與主力買賣超籌碼動向 (單位：張)")
 
-            light, status, buy_pt, sell_pt, short_p, mid_p = (
-                generate_ai_analysis(display_hist, latest_turnover)
-            )
-
-            if "紅燈" in light:
-              st.error(f"**警示燈號：** {light} - {status}")
-            elif "黃燈" in light:
-              st.warning(f"**警示燈號：** {light} - {status}")
+            if not institutional_df.empty:
+              # 顯示最近 5 天的法人買賣超表格
+              recent_inst = institutional_df.tail(5).iloc[::-1]
+              st.dataframe(recent_inst, use_container_width=True)
             else:
-              st.success(f"**警示燈號：** {light} - {status}")
+              st.info(
+                  "目前無法從 FinMind 取得該代號的三大法人買賣超明細資料。"
+              )
 
-            ai_col1, ai_col2 = st.columns(2)
-            with ai_col1:
-              st.info(f"**💡 建議買點規劃**\n\n{buy_pt}")
-              st.info(f"**⚡ 短線操作規劃**\n\n{short_p}")
-            with ai_col2:
-              st.warning(f"**🎯 建議賣點規劃**\n\n{sell_pt}")
-              st.warning(f"**📈 中期趨勢規劃**\n\n{mid_p}")
             st.markdown("---")
 
-            # --- 1. 分時行情走勢圖（對齊目標交易日） ---
+            # --- 1. 分時行情走勢圖 ---
             st.markdown(
                 f"### 📈 分時即時行情（日期: {target_date}）\n"
                 f"**參考價 (昨收)**: `{ref_price:.2f}` | **收盤價**: `{latest_close:.2f}`"
@@ -396,7 +365,7 @@ if st.button("開始 AI 深度分析", type="primary"):
 
             st.markdown("---")
 
-            # --- 2. 專業多技術指標圖表 (K線圖、成交量、KD、RSI) ---
+            # --- 2. 專業技術指標圖表 ---
             fig = make_subplots(
                 rows=4,
                 cols=1,
@@ -438,7 +407,7 @@ if st.button("開始 AI 深度分析", type="primary"):
                     x=display_hist.index,
                     y=display_hist["MA20"],
                     line=dict(color="blue", width=1),
-                    name="布林中軌 (MA20)",
+                    name="布林中卷 (MA20)",
                 ),
                 row=1,
                 col=1,
@@ -503,27 +472,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                 col=1,
             )
 
-            fig.add_shape(
-                type="line",
-                x0=display_hist.index[0],
-                x1=display_hist.index[-1],
-                y0=70,
-                y1=70,
-                line=dict(color="red", dash="dash"),
-                row=4,
-                col=1,
-            )
-            fig.add_shape(
-                type="line",
-                x0=display_hist.index[0],
-                x1=display_hist.index[-1],
-                y0=30,
-                y1=30,
-                line=dict(color="green", dash="dash"),
-                row=4,
-                col=1,
-            )
-
             fig.update_layout(
                 height=950,
                 xaxis_rangeslider_visible=False,
@@ -538,31 +486,6 @@ if st.button("開始 AI 深度分析", type="primary"):
             )
 
             st.plotly_chart(fig, use_container_width=True)
-
-            table_df = display_hist[[
-                "Close",
-                "成交量(張)",
-                "週轉率(%)",
-                "K",
-                "D",
-                "RSI",
-                "布林上軌",
-                "布林下軌",
-            ]].copy()
-            table_df.columns = [
-                "收盤價",
-                "成交量(張)",
-                "週轉率(%)",
-                "K值",
-                "D值",
-                "RSI(14)",
-                "布林上軌",
-                "布林下軌",
-            ]
-            table_df = table_df.iloc[::-1]
-
-            st.subheader("📋 近期詳細技術指標與成交量數據（最新日期在最上方）")
-            st.dataframe(table_df, use_container_width=True)
 
       except Exception as e:
         st.error(f"程式執行時發生未預期的錯誤：{e}")
