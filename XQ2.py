@@ -10,7 +10,7 @@ st.set_page_config(page_title="台股智慧技術分析與週轉率系統", layo
 
 st.title("📊 台股智慧技術分析與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動繪製 走勢圖、K線圖、布林通道、KD、RSI、週轉率，並由 AI 模組提供走勢研判、買賣點與警示燈號。"
+    "輸入台股代號，自動繪製當日分時走勢與成交量、K線圖、布林通道、KD、RSI、週轉率，並由 AI 模組提供策略建議與警示燈號。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -133,6 +133,7 @@ if st.button("開始 AI 深度分析", type="primary"):
   else:
     with st.spinner(f"正在載入代號 {stock_id} 的資料並進行 AI 智慧分析..."):
       try:
+        # 1. 取得每日歷史資料（作為技術指標與多日檢視用）
         ticker_symbol = f"{stock_id.strip()}.TW"
         stock = yf.Ticker(ticker_symbol)
         hist = stock.history(period="6mo")
@@ -149,6 +150,9 @@ if st.button("開始 AI 深度分析", type="primary"):
           )
         else:
           shares_outstanding = stock.info.get("sharesOutstanding")
+
+          # 2. 嘗試取得當日（或最近一個交易日）的「分時高頻資料」(Intraday 1m)
+          intraday_df = stock.history(period="1d", interval="1m")
 
           # 計算技術指標
           hist = calculate_technical_indicators(hist, shares_outstanding)
@@ -186,7 +190,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                 generate_ai_analysis(display_hist, latest_turnover)
             )
 
-            # 根據燈號顯示對應警示效果
             if "紅燈" in light:
               st.error(f"**警示燈號：** {light} - {status}")
             elif "黃燈" in light:
@@ -203,9 +206,68 @@ if st.button("開始 AI 深度分析", type="primary"):
               st.warning(f"**📈 中期趨勢規劃**\n\n{mid_p}")
             st.markdown("---")
 
-            # --- 1. 獨立的股價走勢圖 (Line Chart) ---
-            st.subheader("📈 個股收盤走勢圖")
-            st.line_chart(display_hist["Close"], use_container_width=True)
+            # --- 1. 當日行情走勢圖（含成交量雙子圖） ---
+            st.subheader("📈 當日行情走勢圖（含成交量）")
+            if intraday_df.empty:
+              st.info(
+                  "目前非交易時間或無法取得當日分時資料，改以近期收盤走勢替代。"
+              )
+              st.line_chart(display_hist["Close"], use_container_width=True)
+            else:
+              # 將分時成交量轉換為張
+              intraday_df["Intraday_Volume_Lot"] = intraday_df["Volume"] / 1000.0
+              intra_colors = [
+                  "red" if r["Close"] >= r["Open"] else "green"
+                  for _, r in intraday_df.iterrows()
+              ]
+
+              intra_fig = make_subplots(
+                  rows=2,
+                  cols=1,
+                  shared_xaxes=True,
+                  vertical_spacing=0.03,
+                  row_heights=[0.7, 0.3],
+                  subplot_titles=(
+                      "當日分時走勢圖 (Price)",
+                      "當日分時成交量 (張)",
+                  ),
+              )
+
+              # 價格曲線
+              intra_fig.add_trace(
+                  go.Scatter(
+                      x=intraday_df.index,
+                      y=intraday_df["Close"],
+                      mode="lines",
+                      name="分時股價",
+                      line=dict(color="blue", width=2),
+                      fill="tozeroy",
+                      fillcolor="rgba(0,0,255,0.05)",
+                  ),
+                  row=1,
+                  col=1,
+              )
+
+              # 成交量柱狀圖
+              intra_fig.add_trace(
+                  go.Bar(
+                      x=intraday_df.index,
+                      y=intraday_df["Intraday_Volume_Lot"],
+                      name="分時成交量(張)",
+                      marker_color=intra_colors,
+                  ),
+                  row=2,
+                  col=1,
+              )
+
+              intra_fig.update_layout(
+                  height=500,
+                  xaxis_rangeslider_visible=False,
+                  template="plotly_white",
+                  showlegend=False,
+              )
+              st.plotly_chart(intra_fig, use_container_width=True)
+
             st.markdown("---")
 
             # --- 2. 專業多技術指標圖表 (K線圖、成交量、KD、RSI) ---
