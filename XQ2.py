@@ -8,12 +8,12 @@ import yfinance as yf
 
 # 設定網頁標題與排版
 st.set_page_config(
-    page_title="台股智慧技術分析、主力籌碼與 AI 系統", layout="wide"
+    page_title="台股智慧技術分析、當沖法則與 AI 系統", layout="wide"
 )
 
-st.title("📊 台股智慧技術分析、主力籌碼與 AI 策略系統")
+st.title("📊 台股智慧技術分析、當沖法則、主力籌碼與 AI 系統")
 st.write(
-    "輸入台股代號，自動同步呈現 AI 策略建議、主力進出籌碼、中文簡稱、分時走勢、K線圖與技術指標。"
+    "輸入台股代號，自動同步呈現當沖實戰法則、AI 策略建議、主力進出籌碼、中文簡稱、分時走勢、K線圖與技術指標。"
 )
 
 # 已內建您的 FinMind API Token
@@ -180,13 +180,59 @@ def generate_ai_analysis(display_hist, latest_turnover):
   )
 
 
-if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
+def generate_day_trading_rules(yesterday_df, ref_price):
+  """當沖實戰法則與多空研判邏輯"""
+  if yesterday_df.empty or len(yesterday_df) < 5:
+    return ["資料不足，無法產生當沖指標。"], "請於開盤或盤中時段查詢即時分時資料。"
+
+  latest_price = yesterday_df["Close"].iloc[-1]
+  vwap = (
+      yesterday_df["Close"] * yesterday_df["Volume"]
+  ).cumsum() / yesterday_df["Volume"].cumsum()
+  latest_vwap = vwap.iloc[-1]
+
+  rules = []
+  if latest_price >= latest_vwap:
+    rules.append(
+        "🟢 **VWAP 均價線多方戰法**：現價 (**"
+        f"{latest_price:.2f}**) 位於成交均價線 (**{latest_vwap:.2f}**) 之上，"
+        "盤勢偏多。拉回至 VWAP 附近若量縮有守，可偏多試單。"
+    )
+  else:
+    rules.append(
+        "🔴 **VWAP 均價線空方戰法**：現價 (**"
+        f"{latest_price:.2f}**) 位於成交均價線 (**{latest_vwap:.2f}**) 之下，"
+        "盤勢偏弱。反彈至 VWAP 遇壓無力時，可留意空方試單機會。"
+    )
+
+  if latest_price >= ref_price:
+    rules.append(
+        "📈 **參考價防守原則**：現價高於昨收參考價 (`"
+        f"{ref_price:.2f}`)，多方氣勢較強，可觀察早盤高點是否帶量突破。"
+    )
+  else:
+    rules.append(
+        "📉 **參考價防守原則**：現價低於昨收參考價 (`"
+        f"{ref_price:.2f}`)，空方掌控節奏，慎防賣壓殺低或測底行情。"
+    )
+
+  risk_mgmt = (
+      "⚠️ **當沖嚴格紀律與風控**：\n"
+      "1. **嚴設停損**：每筆當沖交易建議設立 **1% ~ 1.5%** 停損點，嚴禁凹單。\n"
+      "2. **當日結清**：實行嚴格的當日沖銷紀律，絕不抱股過夜。\n"
+      "3. **量價配合**：若急拉無量或急殺帶量破底，應順勢操作、切勿逆勢攤平。"
+  )
+
+  return rules, risk_mgmt
+
+
+if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
   cleaned_id = stock_id.strip()
   if not cleaned_id:
     st.warning("請先輸入有效的股票代號！")
   else:
     with st.spinner(
-        f"正在同步代號 {cleaned_id} 的行情、AI 分析、主力進出與技術指標..."
+        f"正在同步代號 {cleaned_id} 的行情、當沖法則、AI 分析與技術指標..."
     ):
       try:
         ticker_symbol = f"{cleaned_id}.TW"
@@ -291,6 +337,22 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
             m2.metric("單日週轉率", f"{latest_turnover:.2f}%")
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
+
+            # --- ⚡ 當沖實戰法則與多空研判專區 ---
+            st.markdown("---")
+            st.subheader("⚡ 當沖實戰法則與盤中多空研判")
+
+            day_rules, day_risk = generate_day_trading_rules(
+                yesterday_df, ref_price
+            )
+            d_col1, d_col2 = st.columns(2)
+            with d_col1:
+              st.success(
+                  "**🎯 當沖多空核心戰法**\n\n"
+                  + "\n\n".join([f"* {r}" for r in day_rules])
+              )
+            with d_col2:
+              st.warning(day_risk)
 
             # --- 🤖 AI 智慧分析專區 ---
             st.markdown("---")
@@ -539,66 +601,4 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
             )
 
             colors = [
-                "red" if row["Close"] >= row["Open"] else "green"
-                for _, row in display_hist.iterrows()
-            ]
-            fig.add_trace(
-                go.Bar(
-                    x=display_hist.index,
-                    y=display_hist["成交量(張)"],
-                    name="成交量 (張)",
-                    marker_color=colors,
-                ),
-                row=2,
-                col=1,
-            )
-
-            fig.add_trace(
-                go.Scatter(
-                    x=display_hist.index,
-                    y=display_hist["K"],
-                    line=dict(color="orange", width=1.5),
-                    name="K值",
-                ),
-                row=3,
-                col=1,
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=display_hist.index,
-                    y=display_hist["D"],
-                    line=dict(color="purple", width=1.5),
-                    name="D值",
-                ),
-                row=3,
-                col=1,
-            )
-
-            fig.add_trace(
-                go.Scatter(
-                    x=display_hist.index,
-                    y=display_hist["RSI"],
-                    line=dict(color="magenta", width=1.5),
-                    name="RSI (14)",
-                ),
-                row=4,
-                col=1,
-            )
-
-            fig.update_layout(
-                height=950,
-                xaxis_rangeslider_visible=False,
-                template="plotly_dark",
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1,
-                ),
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
-
-      except Exception as e:
-        st.error(f"程式執行時發生未預期的錯誤：{e}")
+                "red" if row["Close"] >= row
