@@ -171,7 +171,6 @@ if st.button("開始 AI 深度分析", type="primary"):
           else:
             yesterday_df = pd.DataFrame()
 
-          # 確保分時圖的最後一筆收盤價強制與日K收盤價一致，解決高頻數據尾盤跳動落差
           if not yesterday_df.empty:
             yesterday_df.iloc[-1, yesterday_df.columns.get_loc("Close")] = (
                 latest_close
@@ -186,7 +185,28 @@ if st.button("開始 AI 深度分析", type="primary"):
             latest_d = display_hist["D"].iloc[-1]
 
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("最新收盤價", f"{latest_close:.2f}", f"{price_diff:.2f}")
+            with m1:
+              st.markdown("最新收盤價")
+              st.markdown(
+                  f"### {latest_close:.2f}"
+              )
+              # 嚴格控制台股習慣：向上為紅、向下為綠
+              if price_diff > 0:
+                st.markdown(
+                    f"<span style='color: #ff4d4d; background-color: rgba(255,77,77,0.1); padding: 4px 8px; border-radius: 4px; font-weight: bold;'>↑ +{price_diff:.2f}</span>",
+                    unsafe_allow_html=True,
+                )
+              elif price_diff < 0:
+                st.markdown(
+                    f"<span style='color: #2eb82e; background-color: rgba(46,184,46,0.1); padding: 4px 8px; border-radius: 4px; font-weight: bold;'>↓ {price_diff:.2f}</span>",
+                    unsafe_allow_html=True,
+                )
+              else:
+                st.markdown(
+                    f"<span style='color: gray; background-color: rgba(128,128,128,0.1); padding: 4px 8px; border-radius: 4px; font-weight: bold;'>- 0.00</span>",
+                    unsafe_allow_html=True,
+                )
+
             m2.metric("單日週轉率", f"{latest_turnover:.2f}%")
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
