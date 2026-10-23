@@ -19,7 +19,6 @@ with col1:
       "請輸入台股代號 (例如：2330、2340)：", value="2330"
   )
 with col2:
-  # 調整為指定的分析期間選項
   period_options = ["1日", "3日", "5日", "10日", "20日", "60日"]
   selected_period = st.selectbox(
       "選擇分析期間：", period_options, index=4
@@ -39,19 +38,19 @@ n_days = period_days_map[selected_period]
 
 def calculate_technical_indicators(df, shares_outstanding):
   # 1. 將成交量從「股」轉換為台股習慣的「張」(1張 = 1000股)
-  df["Volume_Lot"] = df["Volume"] / 1000.0
+  df["成交量(張)"] = df["Volume"] / 1000.0
 
   # 2. 計算週轉率 (%) = (成交股數 / 發行總股數) * 100
   if shares_outstanding and shares_outstanding > 0:
-    df["Turnover_Rate(%)"] = (df["Volume"] / shares_outstanding) * 100
+    df["週轉率(%)"] = (df["Volume"] / shares_outstanding) * 100
   else:
-    df["Turnover_Rate(%)"] = 0
+    df["週轉率(%)"] = 0
 
   # 3. 布林通道 (20日，2倍標準差)
   df["MA20"] = df["Close"].rolling(window=20).mean()
   df["STD"] = df["Close"].rolling(window=20).std()
-  df["Upper_Band"] = df["MA20"] + (df["STD"] * 2)
-  df["Lower_Band"] = df["MA20"] - (df["STD"] * 2)
+  df["布林上軌"] = df["MA20"] + (df["STD"] * 2)
+  df["布林下軌"] = df["MA20"] - (df["STD"] * 2)
 
   # 4. RSI 指標 (14日)
   delta = df["Close"].diff()
@@ -86,8 +85,6 @@ if st.button("開始分析", type="primary"):
   else:
     with st.spinner(f"正在載入代號 {stock_id} 的資料並計算技術指標..."):
       try:
-        # 為了確保技術指標（如MA20、KD、RSI）在短天數下也能正確運算，
-        # 底層先抓取 6 個月的歷史資料作為計算基礎
         ticker_symbol = f"{stock_id.strip()}.TW"
         stock = yf.Ticker(ticker_symbol)
         hist = stock.history(period="6mo")
@@ -104,11 +101,11 @@ if st.button("開始分析", type="primary"):
           )
         else:
           shares_outstanding = stock.info.get("sharesOutstanding")
-          
-          # 先計算完整歷史的指標
+
+          # 計算技術指標
           hist = calculate_technical_indicators(hist, shares_outstanding)
 
-          # 根據用戶選定的天數進行切片，只顯示最近 N 個交易日
+          # 根據用戶選定的天數進行切片
           display_hist = hist.tail(n_days).copy()
 
           if display_hist.empty:
@@ -120,7 +117,7 @@ if st.button("開始分析", type="primary"):
 
             # 顯示最新數據指標
             latest_close = display_hist["Close"].iloc[-1]
-            latest_turnover = display_hist["Turnover_Rate(%)"].iloc[-1]
+            latest_turnover = display_hist["週轉率(%)"].iloc[-1]
             latest_rsi = display_hist["RSI"].iloc[-1]
             latest_k = display_hist["K"].iloc[-1]
             latest_d = display_hist["D"].iloc[-1]
@@ -166,7 +163,7 @@ if st.button("開始分析", type="primary"):
             fig.add_trace(
                 go.Scatter(
                     x=display_hist.index,
-                    y=display_hist["Upper_Band"],
+                    y=display_hist["布林上軌"],
                     line=dict(color="gray", width=1, dash="dash"),
                     name="布林上軌",
                 ),
@@ -186,7 +183,7 @@ if st.button("開始分析", type="primary"):
             fig.add_trace(
                 go.Scatter(
                     x=display_hist.index,
-                    y=display_hist["Lower_Band"],
+                    y=display_hist["布林下軌"],
                     line=dict(color="gray", width=1, dash="dash"),
                     name="布林下軌",
                     fill="tonexty",
@@ -204,7 +201,7 @@ if st.button("開始分析", type="primary"):
             fig.add_trace(
                 go.Bar(
                     x=display_hist.index,
-                    y=display_hist["Volume_Lot"],
+                    y=display_hist["成交量(張)"],
                     name="成交量 (張)",
                     marker_color=colors,
                 ),
@@ -284,23 +281,30 @@ if st.button("開始分析", type="primary"):
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # 顯示詳細數據表格
+            # 顯示詳細數據表格 (將 DataFrame 欄位重新命名為繁體中文)
+            table_df = display_hist[[
+                "Close",
+                "成交量(張)",
+                "週轉率(%)",
+                "K",
+                "D",
+                "RSI",
+                "布林上軌",
+                "布林下軌",
+            ]].copy()
+            table_df.columns = [
+                "收盤價",
+                "成交量(張)",
+                "週轉率(%)",
+                "K值",
+                "D值",
+                "RSI(14)",
+                "布林上軌",
+                "布林下軌",
+            ]
+
             st.subheader("📋 近期詳細技術指標與成交量數據")
-            st.dataframe(
-                display_hist[
-                    [
-                        "Close",
-                        "Volume_Lot",
-                        "Turnover_Rate(%)",
-                        "K",
-                        "D",
-                        "RSI",
-                        "Upper_Band",
-                        "Lower_Band",
-                    ]
-                ],
-                use_container_width=True,
-            )
+            st.dataframe(table_df, use_container_width=True)
 
       except Exception as e:
         st.error(f"程式執行時發生未預期的錯誤：{e}")
