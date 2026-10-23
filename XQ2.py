@@ -292,7 +292,7 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
 
-            # --- 🤖 AI 智慧分析專區 (已完整恢復) ---
+            # --- 🤖 AI 智慧分析專區 ---
             st.markdown("---")
             st.subheader("🤖 AI 智慧走勢研判與策略建議")
 
@@ -467,7 +467,7 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
                   side="right",
               )
 
-5              y_fig.update_layout(
+              y_fig.update_layout(
                   height=520,
                   xaxis_rangeslider_visible=False,
                   template="plotly_dark",
