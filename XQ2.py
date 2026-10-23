@@ -11,7 +11,7 @@ st.set_page_config(page_title="台股智慧技術分析、籌碼與 AI 系統", 
 
 st.title("📊 台股智慧技術分析、主力籌碼與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動同步呈現中文簡稱、三大法人籌碼、分時走勢、參考價基準、紅綠填色與成交量、K線圖與技術指標。"
+    "輸入台股代號，自動同步呈現中文簡稱、當日三大法人籌碼、分時走勢、參考價基準、紅綠填色與成交量、K線圖與技術指標。"
 )
 
 # 已自動內建您的 FinMind API Token
@@ -57,9 +57,10 @@ stock_name_map = {
 
 
 def get_finmind_institutional_investors(stock_id, token=""):
-  """透過 FinMind API 取得三大法人買賣超資料（將查詢區間拉長至 90 天以確保抓取最新可用資料）"""
+  """透過 FinMind API 取得三大法人買賣超資料"""
   try:
-    start_date = (pd.Timestamp.today() - pd.Timedelta(days=90)).strftime(
+    # 抓取最近 30 天以確保涵蓋完整的最新交易日
+    start_date = (pd.Timestamp.today() - pd.Timedelta(days=30)).strftime(
         "%Y-%m-%d"
     )
     url = f"https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestors&data_id={stock_id}&start_date={start_date}"
@@ -237,16 +238,35 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
 
-            # --- 三大法人買賣超籌碼專區 ---
+            # --- 當日三大法人買賣超籌碼專區 ---
             st.markdown("---")
-            st.subheader("🏛️ 三大法人買賣超籌碼動向 (單位：張)")
+            st.subheader("🏛️ 當日三大法人買賣超籌碼 (單位：張)")
 
             if not institutional_df.empty:
-              recent_inst = institutional_df.tail(5).iloc[::-1]
-              st.dataframe(recent_inst, use_container_width=True)
+              # 取得最新一個交易日的法人資料
+              latest_inst_date = institutional_df.index[-1]
+              latest_inst_row = institutional_df.iloc[-1]
+
+              st.markdown(f"**📅 最新統計日期：`{latest_inst_date}`**")
+
+              # 用 4 個欄位分別展示當日外資、投信、自營商及合計
+              inst_cols = st.columns(len(latest_inst_row))
+              for idx, (col_name, val) in enumerate(
+                  latest_inst_row.items()
+              ):
+                with inst_cols[idx]:
+                  color_style = "color: #ff4d4d;" if val > 0 else "color: #2eb82e;" if val < 0 else "color: gray;"
+                  st.markdown(
+                      f"**{col_name}**<br><span style='font-size: 1.2rem; font-weight: bold; {color_style}'>{val:+.2f} 張</span>",
+                      unsafe_allow_html=True,
+                  )
+
+              st.markdown("")
+              with st.expander("查看近期法人買賣超歷史明細"):
+                st.dataframe(institutional_df.tail(10).iloc[::-1], use_container_width=True)
             else:
               st.info(
-                  "ℹ️ 提示：目前該代號在查詢區間內無三大法人買賣超紀錄（可能為當日無外資/投信/自營商進出，或資料尚未結算）。"
+                  "ℹ️ 提示：目前該代號尚無當日三大法人買賣超紀錄（可能為尚未結算或當日無進出）。"
               )
 
             st.markdown("---")
