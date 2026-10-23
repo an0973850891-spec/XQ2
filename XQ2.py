@@ -281,7 +281,7 @@ if st.button("開始分析", type="primary"):
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # 顯示詳細數據表格 (將 DataFrame 欄位重新命名為繁體中文)
+            # 建立詳細數據表格並使用 iloc[::-1] 將最新日期排在最上方
             table_df = display_hist[[
                 "Close",
                 "成交量(張)",
@@ -292,6 +292,7 @@ if st.button("開始分析", type="primary"):
                 "布林上軌",
                 "布林下軌",
             ]].copy()
+            
             table_df.columns = [
                 "收盤價",
                 "成交量(張)",
@@ -302,8 +303,11 @@ if st.button("開始分析", type="primary"):
                 "布林上軌",
                 "布林下軌",
             ]
+            
+            # 讓最新日期顯示在最上方
+            table_df = table_df.iloc[::-1]
 
-            st.subheader("📋 近期詳細技術指標與成交量數據")
+            st.subheader("📋 近期詳細技術指標與成交量數據（最新日期在最上方）")
             st.dataframe(table_df, use_container_width=True)
 
       except Exception as e:
