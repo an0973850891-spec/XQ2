@@ -10,7 +10,7 @@ st.set_page_config(page_title="台股智慧技術分析與 AI 系統", layout="w
 
 st.title("📊 台股智慧技術分析與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動同步呈現公司名稱、分時走勢、參考價基準、紅綠填色與成交量、K線圖、技術指標與 AI 策略建議。"
+    "輸入台股代號，自動同步呈現中文簡稱、分時走勢、參考價基準、紅綠填色與成交量、K線圖、技術指標與 AI 策略建議。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -33,6 +33,25 @@ period_days_map = {
     "60日": 60,
 }
 n_days = period_days_map[selected_period]
+
+# 常見台股代號對應中文簡稱字典（可自行擴充）
+stock_name_map = {
+    "1815": "富喬",
+    "2330": "台積電",
+    "2317": "鴻海",
+    "2454": "聯發科",
+    "2308": "台達電",
+    "2881": "富邦金",
+    "2882": "國泰金",
+    "2891": "中信金",
+    "2603": "長榮",
+    "2609": "陽明",
+    "2615": "萬海",
+    "0050": "元大台灣50",
+    "0056": "元大高股息",
+    "00878": "國泰永續高股息",
+    "00919": "群益台灣精選高息",
+}
 
 
 def calculate_technical_indicators(df, shares_outstanding):
@@ -115,30 +134,32 @@ def generate_ai_analysis(display_hist, latest_turnover):
 
 
 if st.button("開始 AI 深度分析", type="primary"):
-  if not stock_id.strip():
+  cleaned_id = stock_id.strip()
+  if not cleaned_id:
     st.warning("請先輸入有效的股票代號！")
   else:
-    with st.spinner(f"正在載入代號 {stock_id} 的資料與公司名稱..."):
+    with st.spinner(f"正在載入代號 {cleaned_id} 的資料與公司名稱..."):
       try:
-        ticker_symbol = f"{stock_id.strip()}.TW"
+        ticker_symbol = f"{cleaned_id}.TW"
         stock = yf.Ticker(ticker_symbol)
         hist = stock.history(period="6mo")
 
         if hist.empty:
-          ticker_symbol = f"{stock_id.strip()}.TWO"
+          ticker_symbol = f"{cleaned_id}.TWO"
           stock = yf.Ticker(ticker_symbol)
           hist = stock.history(period="6mo")
 
         if hist.empty:
           st.error(
-              f"找不到代號 {stock_id}"
+              f"找不到代號 {cleaned_id}"
               " 的資料，請確認代號是否正確（支援上市及上櫃股票）。"
           )
         else:
-          # 取得公司名稱 (優先抓取中文簡稱或長名稱)
+          # 取得公司名稱：優先從內建字典抓取中文簡稱，若無則抓取 Yahoo 英文名稱
           info = stock.info
-          stock_name = (
-              info.get("longName") or info.get("shortName") or stock_id
+          stock_name = stock_name_map.get(
+              cleaned_id,
+              info.get("longName") or info.get("shortName") or cleaned_id,
           )
           shares_outstanding = info.get("sharesOutstanding")
 
@@ -189,14 +210,13 @@ if st.button("開始 AI 深度分析", type="primary"):
             latest_k = display_hist["K"].iloc[-1]
             latest_d = display_hist["D"].iloc[-1]
 
-            # 顯示帶有公司名稱的主標題
-            st.subheader(f"📌 分析標的：{stock_id} 【{stock_name}】")
+            # 顯示代號與中文簡稱
+            st.subheader(f"📌 分析標的：{cleaned_id} 【{stock_name}】")
 
             m1, m2, m3, m4 = st.columns(4)
             with m1:
               st.markdown("最新收盤價")
               st.markdown(f"### {latest_close:.2f}")
-              # 台股習慣：向上為紅、向下為綠
               if price_diff > 0:
                 st.markdown(
                     f"<span style='color: #ff4d4d; background-color:"
