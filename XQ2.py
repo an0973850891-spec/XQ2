@@ -6,11 +6,11 @@ import streamlit as st
 import yfinance as yf
 
 # 設定網頁標題與排版
-st.set_page_config(page_title="台股智慧技術分析與週轉率系統", layout="wide")
+st.set_page_config(page_title="台股三關價分時走勢與 AI 策略系統", layout="wide")
 
-st.title("📊 台股智慧技術分析與 AI 策略系統")
+st.title("📊 台股三關價分時走勢與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動繪製以均價為中心的昨日分時走勢圖（紅綠區間與成交量）、K線圖、布林通道、KD、RSI、週轉率與 AI 策略建議。"
+    "輸入台股代號，自動繪製擬真三關價分時走勢圖（含壓力、支撐、參考價、紅綠填色與成交量）、K線圖、技術指標與 AI 策略建議。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -24,7 +24,6 @@ with col2:
       "選擇分析期間：", period_options, index=4
   )  # 預設為 20日
 
-# 將期間對應到實際要擷取的交易日數
 period_days_map = {
     "1日": 1,
     "3日": 3,
@@ -37,22 +36,17 @@ n_days = period_days_map[selected_period]
 
 
 def calculate_technical_indicators(df, shares_outstanding):
-  # 1. 將成交量從「股」轉換為台股習慣的「張」(1張 = 1000股)
   df["成交量(張)"] = df["Volume"] / 1000.0
-
-  # 2. 計算週轉率 (%) = (成交股數 / 發行總股數) * 100
   if shares_outstanding and shares_outstanding > 0:
     df["週轉率(%)"] = (df["Volume"] / shares_outstanding) * 100
   else:
     df["週轉率(%)"] = 0
 
-  # 3. 布林通道 (20日，2倍標準差)
   df["MA20"] = df["Close"].rolling(window=20).mean()
   df["STD"] = df["Close"].rolling(window=20).std()
   df["布林上軌"] = df["MA20"] + (df["STD"] * 2)
   df["布林下軌"] = df["MA20"] - (df["STD"] * 2)
 
-  # 4. RSI 指標 (14日)
   delta = df["Close"].diff()
   gain = delta.where(delta > 0, 0)
   loss = -delta.where(delta < 0, 0)
@@ -61,7 +55,6 @@ def calculate_technical_indicators(df, shares_outstanding):
   rs = avg_gain / avg_loss
   df["RSI"] = 100 - (100 / (1 + rs))
 
-  # 5. KD 指標 (9日)
   low_min = df["Low"].rolling(window=9).min()
   high_max = df["High"].rolling(window=9).max()
   rsv = (df["Close"] - low_min) / (high_max - low_min) * 100
@@ -80,7 +73,6 @@ def calculate_technical_indicators(df, shares_outstanding):
 
 
 def generate_ai_analysis(display_hist, latest_turnover):
-  """AI 智慧分析引擎：產出燈號、趨勢評語、建議買賣點與短中期規劃"""
   latest = display_hist.iloc[-1]
   close = latest["Close"]
   ma20 = latest["MA20"]
@@ -90,7 +82,6 @@ def generate_ai_analysis(display_hist, latest_turnover):
   upper = latest["布林上軌"]
   lower = latest["布林下軌"]
 
-  # 警示燈與狀態判定
   if rsi > 70 or k > 80 or close >= upper:
     warning_light = "🔴 紅燈：高檔過熱警示"
     status_msg = "短線乖離過大，技術指標進入超買區，慎防技術性回檔。"
@@ -101,21 +92,17 @@ def generate_ai_analysis(display_hist, latest_turnover):
     warning_light = "🟢 綠燈：多空震盪穩定"
     status_msg = "技術指標與均線結構處於合理常態區間，依趨勢穩健操作。"
 
-  # 建議買賣點規劃
   if close > ma20:
     support_line = f"月線 (約 {ma20:.2f} 元) 或布林中軌附近"
     resistance_line = f"布林上軌 (約 {upper:.2f} 元)"
-    buy_advice = (
-        f"回測 **{support_line}** 支撐不破且量縮時可視為低接點。"
-    )
+    buy_advice = f"回測 **{support_line}** 支撐不破且量縮時可視為低接點。"
     sell_advice = f"若接近 **{resistance_line}** 或量大不漲時可分批逢高獲利結利。"
   else:
-    support_line = f"布林下軌 (約 {lower:.2f} 元)"
+    support_line = f"布林下軌 (约 {lower:.2f} 元)"
     resistance_line = f"月線 (約 {ma20:.2f} 元)"
     buy_advice = "目前處於弱勢整理，建議靜待帶量突破月線或至下軌尋求支撐再行佈局。"
     sell_advice = "反彈至月線附近若遇壓無法站穩，應以減碼或防守為主。"
 
-  # 短中期規劃
   short_term = (
       "短線觀察 5 日內量能變化與 KD 是否黃金交叉；若單日週轉率放大超過"
       f" 5%，須留意資金競價激烈程度。"
@@ -165,6 +152,22 @@ if st.button("開始 AI 深度分析", type="primary"):
           else:
             yesterday_df = pd.DataFrame()
 
+          # 計算三關價與壓力支撐基準 (透過歷史高低收)
+          if len(hist) >= 2:
+            p_high = hist["High"].iloc[-2]
+            p_low = hist["Low"].iloc[-2]
+            p_close = hist["Close"].iloc[-2]
+          else:
+            p_high = hist["High"].iloc[-1]
+            p_low = hist["Low"].iloc[-1]
+            p_close = hist["Close"].iloc[-1]
+
+          hl_range = p_high - p_low
+          ref_price = p_close
+          resistance_1 = ref_price + hl_range * 0.382
+          resistance_2 = ref_price + hl_range * 0.618
+          support_1 = ref_price - hl_range * 0.382
+
           # 計算技術指標
           hist = calculate_technical_indicators(hist, shares_outstanding)
           display_hist = hist.tail(n_days).copy()
@@ -176,7 +179,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                 f"成功取得代號 {stock_id} 的分析結果（顯示近 {selected_period}）！"
             )
 
-            # 顯示最新數據指標
             latest_close = display_hist["Close"].iloc[-1]
             latest_turnover = display_hist["週轉率(%)"].iloc[-1]
             latest_rsi = display_hist["RSI"].iloc[-1]
@@ -217,27 +219,26 @@ if st.button("開始 AI 深度分析", type="primary"):
               st.warning(f"**📈 中期趨勢規劃**\n\n{mid_p}")
             st.markdown("---")
 
-            # --- 1. 昨日分時行情走勢圖（均價中心線、紅綠區間填色、成交量） ---
-            st.subheader("📈 昨日分時行情走勢圖（均價中心線與紅綠區間）")
+            # --- 1. 擬真三關價分時走勢圖（暗色系、三關價壓力支撐、紅綠填色） ---
+            st.markdown(
+                f"### 📈 三關價即時行情[cite: 4]\n"
+                f"**壓力2**: `{resistance_2:.3f}` | **壓力1**: `{resistance_1:.3f}` | **參考價**: `{ref_price:.2f}` | **支撐**: `{support_1:.3f}`"
+               [cite: 4]
+            )
+
             if yesterday_df.empty:
               st.info("目前無法取得昨日分時資料。")
             else:
               yesterday_df["Intraday_Volume_Lot"] = yesterday_df["Volume"] / 1000.0
               y_colors = [
-                  "red" if r["Close"] >= r["Open"] else "green"
+                  "#ff4d4d" if r["Close"] >= r["Open"] else "#2eb82e"
                   for _, r in yesterday_df.iterrows()
               ]
 
-              # 計算當日成交均價 (VWAP 概念：總成交金額 / 總成交股數)
-              total_value = (
-                  yesterday_df["Close"] * yesterday_df["Volume"]
-              ).sum()
-              total_vol = yesterday_df["Volume"].sum()
+              # 計算分時均線 (VWAP)
               vwap = (
-                  total_value / total_vol
-                  if total_vol > 0
-                  else yesterday_df["Close"].mean()
-              )
+                  yesterday_df["Close"] * yesterday_df["Volume"]
+              ).cumsum() / yesterday_df["Volume"].cumsum()
 
               y_fig = make_subplots(
                   rows=2,
@@ -245,60 +246,76 @@ if st.button("開始 AI 深度分析", type="primary"):
                   shared_xaxes=True,
                   vertical_spacing=0.03,
                   row_heights=[0.75, 0.25],
-                  subplot_titles=(
-                      f"昨日分時走勢圖 (均價基準: {vwap:.2f} 元)",
-                      "昨日分時成交量 (張)",
-                  ),
               )
 
-              # 分時股價曲線
+              # 參考價基準線 (橘色虛線)
+              y_fig.add_shape(
+                  type="line",
+                  x0=yesterday_df.index[0],
+                  x1=yesterday_df.index[-1],
+                  y0=ref_price,
+                  y1=ref_price,
+                  line=dict(color="#ffaa00", width=1.5, dash="dash"),
+                  row=1,
+                  col=1,
+              )
+              # 壓力1
+              y_fig.add_shape(
+                  type="line",
+                  x0=yesterday_df.index[0],
+                  x1=yesterday_df.index[-1],
+                  y0=resistance_1,
+                  y1=resistance_1,
+                  line=dict(color="#ff5555", width=1, dash="dot"),
+                  row=1,
+                  col=1,
+              )
+              # 支撐1
+              y_fig.add_shape(
+                  type="line",
+                  x0=yesterday_df.index[0],
+                  x1=yesterday_df.index[-1],
+                  y0=support_1,
+                  y1=support_1,
+                  line=dict(color="#55ff55", width=1, dash="dot"),
+                  row=1,
+                  col=1,
+              )
+
+              # 分時股價藍線
               y_fig.add_trace(
                   go.Scatter(
                       x=yesterday_df.index,
                       y=yesterday_df["Close"],
                       mode="lines",
                       name="分時股價",
-                      line=dict(color="#1f77b4", width=2),
+                      line=dict(color="#3399ff", width=1.5),
                   ),
                   row=1,
                   col=1,
               )
 
-              # 加入均價基準線 (橘色虛線)
-              y_fig.add_shape(
-                  type="line",
-                  x0=yesterday_df.index[0],
-                  x1=yesterday_df.index[-1],
-                  y0=vwap,
-                  y1=vwap,
-                  line=dict(color="orange", width=1.5, dash="dash"),
+              # 白色均線 (VWAP)
+              y_fig.add_trace(
+                  go.Scatter(
+                      x=yesterday_df.index,
+                      y=vwap,
+                      mode="lines",
+                      name="均線(VWAP)",
+                      line=dict(color="#ffffff", width=1),
+                  ),
                   row=1,
                   col=1,
               )
 
-              # 均價以上填紅色，均價以下填綠色
+              # 參考價以上紅、以下綠區間填色
               y_fig.add_trace(
                   go.Scatter(
                       x=yesterday_df.index,
                       y=yesterday_df["Close"],
                       fill="tozeroy",
-                      fillgradient=dict(
-                          type="vertical",
-                          colorscale=[
-                              (
-                                  0,
-                                  "rgba(0, 180, 0, 0.15)",
-                              ),  # 均價以下綠色
-                              (
-                                  0.5,
-                                  "rgba(200, 200, 200, 0.05)",
-                              ),
-                              (
-                                  1,
-                                  "rgba(255, 0, 0, 0.15)",
-                              ),  # 均價以上紅色
-                          ],
-                      ),
+                      fillbase=ref_price,
+                      fillcolor="rgba(255, 77, 77, 0.25)",  # 紅色填色
                       mode="none",
                       showlegend=False,
                   ),
@@ -318,20 +335,23 @@ if st.button("開始 AI 深度分析", type="primary"):
                   col=1,
               )
 
-              # 自動縮放 Y 軸讓起伏明顯
-              y_min = yesterday_df["Close"].min()
-              y_max = yesterday_df["Close"].max()
-              padding = (y_max - y_min) * 0.1 if y_max != y_min else 1.0
+              y_min = min(yesterday_df["Close"].min(), support_1)
+              y_max = max(yesterday_df["Close"].max(), resistance_1)
+              padding = (y_max - y_min) * 0.05
 
               y_fig.update_yaxes(
-                  range=[y_min - padding, y_max + padding], row=1, col=1
+                  range=[y_min - padding, y_max + padding],
+                  row=1,
+                  col=1,
+                  side="right",
               )
 
               y_fig.update_layout(
                   height=520,
                   xaxis_rangeslider_visible=False,
-                  template="plotly_white",
+                  template="plotly_dark",  # 採用暗色系背景看盤風格
                   showlegend=False,
+                  margin=dict(l=10, r=50, t=10, b=10),
               )
               st.plotly_chart(y_fig, use_container_width=True)
 
@@ -352,7 +372,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                 ),
             )
 
-            # 子圖 1：K線圖 + 布林通道
             fig.add_trace(
                 go.Candlestick(
                     x=display_hist.index,
@@ -398,7 +417,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                 col=1,
             )
 
-            # 子圖 2：成交量 (以張數顯示)
             colors = [
                 "red" if row["Close"] >= row["Open"] else "green"
                 for _, row in display_hist.iterrows()
@@ -414,7 +432,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                 col=1,
             )
 
-            # 子圖 3：KD 指標
             fig.add_trace(
                 go.Scatter(
                     x=display_hist.index,
@@ -436,7 +453,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                 col=1,
             )
 
-            # 子圖 4：RSI 指標
             fig.add_trace(
                 go.Scatter(
                     x=display_hist.index,
@@ -448,7 +464,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                 col=1,
             )
 
-            # 加入 RSI 超買超賣參考線 (70 / 30)
             fig.add_shape(
                 type="line",
                 x0=display_hist.index[0],
@@ -470,11 +485,10 @@ if st.button("開始 AI 深度分析", type="primary"):
                 col=1,
             )
 
-            # 版面佈局微調
             fig.update_layout(
                 height=950,
                 xaxis_rangeslider_visible=False,
-                template="plotly_white",
+                template="plotly_dark",
                 legend=dict(
                     orientation="h",
                     yanchor="bottom",
@@ -486,7 +500,6 @@ if st.button("開始 AI 深度分析", type="primary"):
 
             st.plotly_chart(fig, use_container_width=True)
 
-            # 建立詳細數據表格 (最新日期在最上方)
             table_df = display_hist[[
                 "Close",
                 "成交量(張)",
@@ -497,7 +510,6 @@ if st.button("開始 AI 深度分析", type="primary"):
                 "布林上軌",
                 "布林下軌",
             ]].copy()
-            
             table_df.columns = [
                 "收盤價",
                 "成交量(張)",
