@@ -10,7 +10,7 @@ st.set_page_config(page_title="台股智慧技術分析與週轉率系統", layo
 
 st.title("📊 台股智慧技術分析與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動繪製 K線圖、布林通道、KD、RSI、週轉率，並由 AI 模組提供走勢研判、買賣點與警示燈號。"
+    "輸入台股代號，自動繪製 走勢圖、K線圖、布林通道、KD、RSI、週轉率，並由 AI 模組提供走勢研判、買賣點與警示燈號。"
 )
 
 col1, col2 = st.columns([2, 1])
@@ -203,7 +203,12 @@ if st.button("開始 AI 深度分析", type="primary"):
               st.warning(f"**📈 中期趨勢規劃**\n\n{mid_p}")
             st.markdown("---")
 
-            # 使用 Plotly 建立多子圖 (Subplots)
+            # --- 1. 獨立的股價走勢圖 (Line Chart) ---
+            st.subheader("📈 個股收盤走勢圖")
+            st.line_chart(display_hist["Close"], use_container_width=True)
+            st.markdown("---")
+
+            # --- 2. 專業多技術指標圖表 (K線、成交量、KD、RSI) ---
             fig = make_subplots(
                 rows=4,
                 cols=1,
@@ -314,70 +319,4 @@ if st.button("開始 AI 深度分析", type="primary"):
                 col=1,
             )
 
-            # 加入 RSI 超買超賣參考線 (70 / 30)
-            fig.add_shape(
-                type="line",
-                x0=display_hist.index[0],
-                x1=display_hist.index[-1],
-                y0=70,
-                y1=70,
-                line=dict(color="red", dash="dash"),
-                row=4,
-                col=1,
-            )
-            fig.add_shape(
-                type="line",
-                x0=display_hist.index[0],
-                x1=display_hist.index[-1],
-                y0=30,
-                y1=30,
-                line=dict(color="green", dash="dash"),
-                row=4,
-                col=1,
-            )
-
-            # 版面佈局微調
-            fig.update_layout(
-                height=950,
-                xaxis_rangeslider_visible=False,
-                template="plotly_white",
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1,
-                ),
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
-
-            # 建立詳細數據表格 (最新日期在最上方)
-            table_df = display_hist[[
-                "Close",
-                "成交量(張)",
-                "週轉率(%)",
-                "K",
-                "D",
-                "RSI",
-                "布林上軌",
-                "布林下軌",
-            ]].copy()
-            
-            table_df.columns = [
-                "收盤價",
-                "成交量(張)",
-                "週轉率(%)",
-                "K值",
-                "D值",
-                "RSI(14)",
-                "布林上軌",
-                "布林下軌",
-            ]
-            table_df = table_df.iloc[::-1]
-
-            st.subheader("📋 近期詳細技術指標與成交量數據（最新日期在最上方）")
-            st.dataframe(table_df, use_container_width=True)
-
-      except Exception as e:
-        st.error(f"程式執行時發生未預期的錯誤：{e}")
+            # 加入 RSI 超買超賣參考線 (
