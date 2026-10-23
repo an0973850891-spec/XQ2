@@ -13,7 +13,7 @@ st.set_page_config(
 
 st.title("📊 台股智慧技術分析、當沖法則、主力籌碼與 AI 系統")
 st.write(
-    "輸入台股代號，自動同步呈現多空訊號燈、當沖實戰法則、AI 策略建議、主力進出籌碼、中文簡稱、分時走勢、K線圖與技術指標。"
+    "輸入台股代號，自動同步呈現中文簡稱、多空訊號燈、當沖實戰法則、AI 策略建議、主力進出籌碼、分時走勢、K線圖與技術指標。"
 )
 
 # 已內建您的 FinMind API Token
@@ -22,7 +22,7 @@ FINMIND_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiYW4wOTczOD
 col1, col2 = st.columns([2, 1])
 with col1:
   stock_id = st.text_input(
-      "請輸入台股代號 (例如：2330、2340、1815、5351)：", value="5351"
+      "請輸入台股代號 (例如：2330、2340、1815、5351、1218)：", value="1218"
   )
 with col2:
   period_options = ["1日", "3日", "5日", "10日", "20日", "60日"]
@@ -38,8 +38,9 @@ period_days_map = {
 }
 n_days = period_days_map[selected_period]
 
-# 擴充上市櫃常見熱門股票對應中文簡稱字典
+# 常見熱門股票中文對應字典（作第一層快速對應）
 stock_name_map = {
+    "1218": "泰山",
     "1815": "富喬",
     "2330": "台積電",
     "2317": "鴻海",
@@ -65,6 +66,25 @@ stock_name_map = {
     "00878": "國泰永續高股息",
     "00919": "群益台灣精選高息",
 }
+
+
+def get_stock_chinese_name(stock_id, token=""):
+  """透過 FinMind TaiwanStockInfo API 智慧取得官方台股中文名稱"""
+  if stock_id in stock_name_map:
+    return stock_name_map[stock_id]
+  try:
+    url = f"https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInfo&data_id={stock_id}"
+    if token.strip():
+      url += f"&token={token.strip()}"
+    res = requests.get(url, timeout=5)
+    data = res.json()
+    if data.get("status") == 200 and len(data.get("data", [])) > 0:
+      name = data["data"][0].get("stock_name")
+      if name:
+        return name
+  except Exception as e:
+    print(f"取得中文名稱例外: {e}")
+  return None
 
 
 def get_finmind_institutional_investors(stock_id, token=""):
@@ -279,16 +299,17 @@ if st.button("開始 AI 深度分析、當沖與籌碼查詢", type="primary"):
           )
         else:
           info = stock.info
-          # 智慧中文名稱對應：優先從字典抓取，若無則嘗試從 info 取得並清理英文贅字
-          raw_name = (
-              info.get("longName") or info.get("shortName") or cleaned_id
-          )
-          stock_name = stock_name_map.get(
-              cleaned_id,
-              raw_name.replace(", Inc.", "")
-              .replace(" Co., Ltd.", "")
-              .replace(" Corporation", ""),
-          )
+          # 智慧取得中文名稱（優先透過 FinMind API 查詢，若無則備援清理英文名稱）
+          stock_name = get_stock_chinese_name(cleaned_id, FINMIND_TOKEN)
+          if not stock_name:
+            raw_name = (
+                info.get("longName") or info.get("shortName") or cleaned_id
+            )
+            stock_name = (
+                raw_name.replace(", Inc.", "")
+                .replace(" Co., Ltd.", "")
+                .replace(" Corporation", "")
+            )
 
           shares_outstanding = info.get("sharesOutstanding")
 
