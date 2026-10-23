@@ -7,12 +7,15 @@ import streamlit as st
 import yfinance as yf
 
 # 設定網頁標題與排版
-st.set_page_config(page_title="台股智慧技術分析與 AI 系統", layout="wide")
+st.set_page_config(page_title="台股智慧技術分析、籌碼與 AI 系統", layout="wide")
 
 st.title("📊 台股智慧技術分析、主力籌碼與 AI 策略系統")
 st.write(
-    "輸入台股代號，自動同步呈現中文簡稱、主力買賣超籌碼、分時走勢、參考價基準、紅綠填色與成交量、K線圖與技術指標。"
+    "輸入台股代號，自動同步呈現中文簡稱、三大法人籌碼、分時走勢、參考價基準、紅綠填色與成交量、K線圖與技術指標。"
 )
+
+# 已自動內建您的 FinMind API Token
+FINMIND_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiYW4wOTczODUwODkxQGdtYWlsLmNvbSIsImVtYWlsIjoiYW4wOTczODUwODkxQGdtYWlsLmNvbSIsInRva2VuX3ZlcnNpb24iOjB9.GqEsz69B2Yc_fuDIEvkesiVa07OH16eDn1GHzgAqV9o"
 
 col1, col2 = st.columns([2, 1])
 with col1:
@@ -21,9 +24,7 @@ with col1:
   )
 with col2:
   period_options = ["1日", "3日", "5日", "10日", "20日", "60日"]
-  selected_period = st.selectbox(
-      "選擇分析期間：", period_options, index=4
-  )  # 預設為 20日
+  selected_period = st.selectbox("選擇分析期間：", period_options, index=4)
 
 period_days_map = {
     "1日": 1,
@@ -55,22 +56,27 @@ stock_name_map = {
 }
 
 
-def get_finmind_institutional_investors(stock_id):
+def get_finmind_institutional_investors(stock_id, token=""):
   """透過 FinMind API 取得三大法人買賣超資料"""
   try:
-    url = f"https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestors&data_id={stock_id}&start_date={(pd.Timestamp.today() - pd.Timedelta(days=30)).strftime('%Y-%m-%d')}"
-    response = requests.get(url)
+    start_date = (pd.Timestamp.today() - pd.Timedelta(days=30)).strftime(
+        "%Y-%m-%d"
+    )
+    url = f"https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInstitutionalInvestors&data_id={stock_id}&start_date={start_date}"
+    if token.strip():
+      url += f"&token={token.strip()}"
+
+    response = requests.get(url, timeout=10)
     data = response.json()
     if "data" in data and len(data["data"]) > 0:
       df = pd.DataFrame(data["data"])
-      # 轉換格式：將買賣超張數轉成以張為單位 (原始通常為股)
-      df["net"] = (df["buy"] - df["sell"]) / 1000.0
+      df["net"] = (df["buy"] - df["sell"]) / 1000.0  # 轉為張
       pivot_df = df.pivot(
           index="date", columns="name", values="net"
       ).fillna(0)
       return pivot_df
-  except Exception:
-    pass
+  except Exception as e:
+    print(f"FinMind 讀取錯誤: {e}")
   return pd.DataFrame()
 
 
@@ -146,8 +152,10 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
           hist = calculate_technical_indicators(hist, shares_outstanding)
           display_hist = hist.tail(n_days).copy()
 
-          # 取得三大法人籌碼
-          institutional_df = get_finmind_institutional_investors(cleaned_id)
+          # 取得三大法人籌碼（自動帶入內建 Token）
+          institutional_df = get_finmind_institutional_investors(
+              cleaned_id, FINMIND_TOKEN
+          )
 
           if len(hist) >= 2:
             target_date = hist.index[-1].strftime("%Y-%m-%d")
@@ -221,17 +229,16 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
             m3.metric("RSI (14)", f"{latest_rsi:.2f}")
             m4.metric("KD 指標", f"K:{latest_k:.1f} / D:{latest_d:.1f}")
 
-            # --- 主力與三大法人買賣超專區 ---
+            # --- 三大法人買賣超籌碼專區 ---
             st.markdown("---")
-            st.subheader("🏛️ 三大法人與主力買賣超籌碼動向 (單位：張)")
+            st.subheader("🏛️ 三大法人買賣超籌碼動向 (單位：張)")
 
             if not institutional_df.empty:
-              # 顯示最近 5 天的法人買賣超表格
               recent_inst = institutional_df.tail(5).iloc[::-1]
               st.dataframe(recent_inst, use_container_width=True)
             else:
-              st.info(
-                  "目前無法從 FinMind 取得該代號的三大法人買賣超明細資料。"
+              st.warning(
+                  "⚠️ 目前無法取得三大法人買賣超資料（可能該檔股票當日無法人進出或為興櫃股票）。"
               )
 
             st.markdown("---")
@@ -407,7 +414,7 @@ if st.button("開始 AI 深度分析與籌碼查詢", type="primary"):
                     x=display_hist.index,
                     y=display_hist["MA20"],
                     line=dict(color="blue", width=1),
-                    name="布林中卷 (MA20)",
+                    name="布林中軌 (MA20)",
                 ),
                 row=1,
                 col=1,
